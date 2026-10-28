@@ -204,6 +204,22 @@
   "kind" "ControllerConfiguration"
   "enableGatewayAPI" true -}}
 {{- $certManagerValues := dict "cert-manager" (dict "config" $certManagerConfig) -}}
+{{- /* cert-manager passes the ACME HTTP-01 solver image to its controller
+       as an argument, and the controller starts solver pods from it, so the
+       post-renderer never sees it. The vendored chart takes it in parts and
+       keeps its own default for a part left unset, so the platform passes
+       only what the override table changes. Without a table nothing is set.
+       The name is the one the chart renders from imageRegistry,
+       imageNamespace and acmesolver.image.name;
+       hack/cert-manager-acmesolver-overrides_test.bats holds the two to the
+       same reference. */ -}}
+{{- $imageOverrides := include "cozystack.platform.imageOverrides" $ | fromYamlArray -}}
+{{- $acmesolver := include "cozy-lib.imageOverrideEntry" (list "quay.io/jetstack/cert-manager-acmesolver" $imageOverrides) | fromYaml -}}
+{{- $acmesolverImage := dict -}}
+{{- with $acmesolver.newName }}{{ $_ := set $acmesolverImage "repository" . }}{{ end -}}
+{{- with $acmesolver.newTag }}{{ $_ := set $acmesolverImage "tag" . }}{{ end -}}
+{{- with $acmesolver.digest }}{{ $_ := set $acmesolverImage "digest" . }}{{ end -}}
+{{- with $acmesolverImage }}{{ $_ := set (index $certManagerValues "cert-manager") "acmesolver" (dict "image" .) }}{{ end -}}
 {{- $certManagerComponents := dict "cert-manager" (dict "values" $certManagerValues) -}}
 {{include "cozystack.platform.package" (list "cozystack.cert-manager" "default" $ $certManagerComponents) }}
 {{- /* Disable hazard guard. The vendored cozy-ouroboros chart (0.8.0)

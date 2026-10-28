@@ -822,10 +822,15 @@ func installPlatformPackageSource(ctx context.Context, k8sClient client.Client, 
 	for i, v := range variantData {
 		variants[i] = cozyv1alpha1.Variant{
 			Name: v.name,
+			// The platform chart computes component values from the image
+			// override table with the cozy-lib helpers; the packages artifact
+			// carries no symlinks, so the library has to be declared.
+			Libraries: []cozyv1alpha1.Library{{Name: "cozy-lib", Path: "library/cozy-lib"}},
 			Components: []cozyv1alpha1.Component{
 				{
-					Name: "platform",
-					Path: "core/platform",
+					Name:      "platform",
+					Path:      "core/platform",
+					Libraries: []string{"cozy-lib"},
 					Install: &cozyv1alpha1.ComponentInstall{
 						Namespace:   "cozy-system",
 						ReleaseName: "cozystack-platform",

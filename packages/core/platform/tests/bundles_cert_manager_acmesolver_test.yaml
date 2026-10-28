@@ -1,0 +1,102 @@
+suite: cert-manager ACME solver image follows the image override table
+templates:
+  - templates/bundles/system.yaml
+  - templates/sources.yaml
+release:
+  name: cozystack
+  namespace: cozy-system
+# cert-manager starts ACME HTTP-01 solver pods from an image its controller
+# takes as an argument, out of the post-renderer's reach. The vendored chart
+# takes that image in parts and keeps its default for each part left unset,
+# so the platform passes only the parts the override table changes, and
+# nothing without a table. hack/cert-manager-acmesolver-overrides_test.bats
+# renders cert-manager with these values and compares the result with
+# kustomize's.
+set:
+  bundles:
+    system:
+      enabled: true
+      variant: isp-full
+tests:
+  - it: passes no solver image without a table
+    template: templates/bundles/system.yaml
+    documentSelector:
+      path: metadata.name
+      value: cozystack.cert-manager
+    asserts:
+      - notExists:
+          path: spec.components.cert-manager.values.cert-manager.acmesolver
+
+  - it: passes a new name alone, keeping the chart's tag
+    template: templates/bundles/system.yaml
+    documentSelector:
+      path: metadata.name
+      value: cozystack.cert-manager
+    set:
+      registries:
+        imageOverrides:
+          - name: quay.io/jetstack/cert-manager-acmesolver
+            newName: registry.example.org/os/cert-manager-acmesolver
+    asserts:
+      - equal:
+          path: spec.components.cert-manager.values.cert-manager.acmesolver
+          value:
+            image:
+              repository: registry.example.org/os/cert-manager-acmesolver
+
+  - it: passes every part an entry sets
+    template: templates/bundles/system.yaml
+    documentSelector:
+      path: metadata.name
+      value: cozystack.cert-manager
+    set:
+      registries:
+        imageOverrides:
+          - name: quay.io/jetstack/cert-manager-acmesolver
+            newName: registry.example.org/os/cert-manager-acmesolver
+            newTag: v1.20.2-os1
+            digest: sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f
+    asserts:
+      - equal:
+          path: spec.components.cert-manager.values.cert-manager.acmesolver
+          value:
+            image:
+              repository: registry.example.org/os/cert-manager-acmesolver
+              tag: v1.20.2-os1
+              digest: sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f
+
+  - it: keeps the rest of the cert-manager values
+    template: templates/bundles/system.yaml
+    documentSelector:
+      path: metadata.name
+      value: cozystack.cert-manager
+    set:
+      registries:
+        imageOverrides:
+          - name: quay.io/jetstack/cert-manager-acmesolver
+            newTag: v1.20.2-os1
+    asserts:
+      - equal:
+          path: spec.components.cert-manager.values.cert-manager.config.enableGatewayAPI
+          value: true
+      - equal:
+          path: spec.components.cert-manager.values.cert-manager.acmesolver.image
+          value:
+            tag: v1.20.2-os1
+
+  - it: ignores entries for other images and entries that select a version
+    template: templates/bundles/system.yaml
+    documentSelector:
+      path: metadata.name
+      value: cozystack.cert-manager
+    set:
+      registries:
+        imageOverrides:
+          - name: quay.io/jetstack/cert-manager-controller
+            newName: registry.example.org/os/cert-manager-controller
+          - name: quay.io/jetstack/cert-manager-acmesolver
+            match: {tag: v1.20.2}
+            newTag: v1.20.2-os1
+    asserts:
+      - notExists:
+          path: spec.components.cert-manager.values.cert-manager.acmesolver

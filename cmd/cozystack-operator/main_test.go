@@ -284,6 +284,10 @@ func TestInstallPlatformPackageSource_VariantValuesFiles(t *testing.T) {
 		if comp.Path != "core/platform" {
 			t.Errorf("variant %q: expected component path %q, got %q", v.Name, "core/platform", comp.Path)
 		}
+		if len(v.Libraries) != 1 || v.Libraries[0].Name != "cozy-lib" || v.Libraries[0].Path != "library/cozy-lib" ||
+			len(comp.Libraries) != 1 || comp.Libraries[0] != "cozy-lib" {
+			t.Errorf("variant %q: expected cozy-lib declared for the platform chart, got %+v and %+v", v.Name, v.Libraries, comp.Libraries)
+		}
 		if comp.Install == nil {
 			t.Errorf("variant %q: expected Install to be set", v.Name)
 		} else {
