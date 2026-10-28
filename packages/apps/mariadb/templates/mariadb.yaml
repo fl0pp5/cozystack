@@ -9,7 +9,11 @@ spec:
     name: {{ .Release.Name }}-credentials
     key: root
 
-  image: "mariadb:{{ include "mariadb.versionMap" $ }}"
+{{- /* mariadb-operator runs the server and the exporter from the images named
+       here, out of the post-renderer's reach, so the platform's image override
+       table is applied in the chart. */}}
+
+  image: {{ include "cozy-lib.image" (list (printf "mariadb:%s" (include "mariadb.versionMap" $ | trim)) $) | quote }}
 
   port: 3306
 
@@ -67,7 +71,7 @@ spec:
   metrics:
     enabled: true
     exporter:
-      image: prom/mysqld-exporter:v0.15.1
+      image: {{ include "cozy-lib.image" (list "prom/mysqld-exporter:v0.15.1" $) }}
       # The mariadb-operator hardcodes the exporter's liveness/readiness probe
       # as an httpGet on port 9104, which kubelet dials over the pod's IPv4
       # address. Bind the exporter to the IPv4 wildcard so the probe connects

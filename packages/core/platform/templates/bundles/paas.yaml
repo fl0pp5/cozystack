@@ -12,7 +12,17 @@
 {{- fail "bundles.paas.enabled requires bundles.system.enabled: the paas catalog depends on packages emitted by the system bundle (cozystack.cozystack-engine, which ships the ApplicationDefinition CRD, plus cozystack.networking, cozystack.cert-manager, cozystack.prometheus-operator-crds, cozystack.postgres-operator and cozystack.objectstorage-controller). To run a hosted platform where the host provides CNI, storage and virtualisation, keep bundles.system.enabled: true and set bundles.system.variant: isp-hosted (which selects a noop networking Package) with bundles.iaas.enabled: false — do not disable the system bundle." }}
 {{- end }}
 {{- if and .Values.bundles.paas.enabled (has .Values.bundles.system.variant (list "isp-full" "isp-full-generic" "isp-hosted" "isp-slim" "isp-slim-generic" "isp-hosted-slim")) }}
-{{include "cozystack.platform.package.full.default" (list "cozystack.mariadb-operator" $) }}
+{{- /* mariadb-operator copies the images it runs into the MariaDB and
+       MaxScale resources it creates, from references its chart renders into a
+       ConfigMap; packages/system/mariadb-operator/patches/image-overrides.diff
+       passes them through the cozy-lib helpers. A subchart does not see
+       _cluster, so the table reaches it under its own key, and only when there
+       is one. */ -}}
+{{- $mariadbOperatorComponents := dict -}}
+{{- with include "cozystack.platform.imageOverrides" $ | fromYamlArray -}}
+{{- $mariadbOperatorComponents = dict "mariadb-operator" (dict "values" (dict "mariadb-operator" (dict "cozystackImageOverrides" .))) -}}
+{{- end }}
+{{include "cozystack.platform.package.full" (list "cozystack.mariadb-operator" "default" $ $mariadbOperatorComponents) }}
 {{include "cozystack.platform.package.full.default" (list "cozystack.kafka-operator" $) }}
 {{include "cozystack.platform.package.full.default" (list "cozystack.clickhouse-operator" $) }}
 {{include "cozystack.platform.package.full.default" (list "cozystack.foundationdb-operator" $) }}

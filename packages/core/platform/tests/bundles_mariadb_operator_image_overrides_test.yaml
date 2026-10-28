@@ -1,0 +1,44 @@
+suite: mariadb-operator receives the image override table under its own key
+templates:
+  - templates/bundles/paas.yaml
+release:
+  name: cozystack
+  namespace: cozy-system
+# The vendored mariadb-operator chart is patched to pass the images the
+# operator copies into its resources through the cozy-lib helpers. As a
+# subchart it does not see _cluster, so the platform hands it the table under
+# mariadb-operator.cozystackImageOverrides, as written (match included), and
+# hands it nothing without a table.
+set:
+  bundles:
+    system:
+      enabled: true
+      variant: isp-full
+    paas:
+      enabled: true
+tests:
+  - it: passes no values without a table
+    documentSelector:
+      path: metadata.name
+      value: cozystack.mariadb-operator
+    asserts:
+      - notExists:
+          path: spec.components
+
+  - it: passes the table to the subchart
+    set:
+      registries:
+        imageOverrides:
+          - name: docker-registry1.mariadb.com/library/mariadb
+            match: {tag: 11.8.2}
+            newTag: 11.8.2-os1
+    documentSelector:
+      path: metadata.name
+      value: cozystack.mariadb-operator
+    asserts:
+      - equal:
+          path: spec.components.mariadb-operator.values.mariadb-operator.cozystackImageOverrides
+          value:
+            - name: docker-registry1.mariadb.com/library/mariadb
+              match: {tag: 11.8.2}
+              newTag: 11.8.2-os1

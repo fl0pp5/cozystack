@@ -1,0 +1,24 @@
+diff --git a/packages/system/mariadb-operator/charts/mariadb-operator/templates/operator/configmap.yaml b/packages/system/mariadb-operator/charts/mariadb-operator/templates/operator/configmap.yaml
+index 88acb245d..d17d36890 100644
+--- a/packages/system/mariadb-operator/charts/mariadb-operator/templates/operator/configmap.yaml
++++ b/packages/system/mariadb-operator/charts/mariadb-operator/templates/operator/configmap.yaml
+@@ -1,13 +1,13 @@
+ apiVersion: v1
+ data:
+-  MARIADB_OPERATOR_IMAGE: "{{ template "image" (tuple .Values.image $.Chart.AppVersion) }}"
++  MARIADB_OPERATOR_IMAGE: {{ include "cozy-lib.image" (list (include "image" (tuple .Values.image $.Chart.AppVersion)) $) | quote }}
+   MARIADB_GALERA_LIB_PATH: "{{ .Values.config.galeraLibPath }}"
+   MARIADB_DEFAULT_VERSION: "{{ .Values.config.mariadbDefaultVersion }}"
+-  RELATED_IMAGE_MARIADB: "{{ .Values.config.mariadbImage }}"
+-  RELATED_IMAGE_MARIADB_NAME: "{{ .Values.config.mariadbImageName }}"
+-  RELATED_IMAGE_MAXSCALE: "{{ .Values.config.maxscaleImage }}"
+-  RELATED_IMAGE_EXPORTER: "{{ .Values.config.exporterImage }}"
+-  RELATED_IMAGE_EXPORTER_MAXSCALE: "{{ .Values.config.exporterMaxscaleImage }}"
++  RELATED_IMAGE_MARIADB: {{ include "cozy-lib.image" (list .Values.config.mariadbImage $) | quote }}
++  RELATED_IMAGE_MARIADB_NAME: {{ include "cozy-lib.imageName" (list .Values.config.mariadbImageName $) | quote }}
++  RELATED_IMAGE_MAXSCALE: {{ include "cozy-lib.image" (list .Values.config.maxscaleImage $) | quote }}
++  RELATED_IMAGE_EXPORTER: {{ include "cozy-lib.image" (list .Values.config.exporterImage $) | quote }}
++  RELATED_IMAGE_EXPORTER_MAXSCALE: {{ include "cozy-lib.image" (list .Values.config.exporterMaxscaleImage $) | quote }}
+ kind: ConfigMap
+ metadata:
+   creationTimestamp: null

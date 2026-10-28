@@ -15,9 +15,13 @@ spec:
     - cozystack.networking
     - cozystack.prometheus-operator-crds
     - cozystack.cert-manager
+    libraries:
+    - name: cozy-lib
+      path: library/cozy-lib
     components:
     - name: mariadb-operator
       path: system/mariadb-operator
+      libraries: ["cozy-lib"]
       install:
         namespace: cozy-mariadb-operator
         releaseName: mariadb-operator

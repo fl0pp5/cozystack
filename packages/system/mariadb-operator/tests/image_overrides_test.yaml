@@ -1,0 +1,57 @@
+suite: mariadb-operator copies of images follow the image override table
+# The operator creates MariaDB and MaxScale resources from the references in
+# its env ConfigMap, and checks its own image against MARIADB_OPERATOR_IMAGE;
+# the post-renderer reaches none of them. patches/image-overrides.diff passes
+# them through the cozy-lib helpers, which read the table the platform hands
+# this subchart under mariadb-operator.cozystackImageOverrides.
+templates:
+  - charts/mariadb-operator/templates/operator/configmap.yaml
+release:
+  name: mariadb-operator
+  namespace: cozy-mariadb-operator
+tests:
+  - it: renders the upstream references without a table
+    asserts:
+      - equal:
+          path: data.RELATED_IMAGE_MARIADB
+          value: docker-registry1.mariadb.com/library/mariadb:11.8.2
+      - equal:
+          path: data.RELATED_IMAGE_MARIADB_NAME
+          value: docker-registry1.mariadb.com/library/mariadb
+      - matchRegex:
+          path: data.MARIADB_OPERATOR_IMAGE
+          pattern: ^docker-registry3\.mariadb\.com/mariadb-operator/mariadb-operator:[0-9.]+$
+
+  - it: rewrites every copy the operator makes, one version by match
+    set:
+      mariadb-operator:
+        cozystackImageOverrides:
+          - name: docker-registry1.mariadb.com/library/mariadb
+            match: {tag: 11.8.2}
+            newName: registry.example.org/os/mariadb
+            newTag: 11.8.2-os1
+          - name: docker-registry1.mariadb.com/library/mariadb
+            newName: registry.example.org/os/mariadb
+          - name: docker-registry2.mariadb.com/mariadb/maxscale
+            newName: registry.example.org/os/maxscale
+          - name: prom/mysqld-exporter
+            digest: sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f
+          - name: docker-registry3.mariadb.com/mariadb-operator/mariadb-operator
+            newName: registry.example.org/os/mariadb-operator
+    asserts:
+      - equal:
+          path: data.RELATED_IMAGE_MARIADB
+          value: registry.example.org/os/mariadb:11.8.2-os1
+      # The operator adds the version a MariaDB asks for to this name.
+      - equal:
+          path: data.RELATED_IMAGE_MARIADB_NAME
+          value: registry.example.org/os/mariadb
+      - equal:
+          path: data.RELATED_IMAGE_MAXSCALE
+          value: registry.example.org/os/maxscale:23.08.5
+      - equal:
+          path: data.RELATED_IMAGE_EXPORTER
+          value: prom/mysqld-exporter@sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f
+      - matchRegex:
+          path: data.MARIADB_OPERATOR_IMAGE
+          pattern: ^registry\.example\.org/os/mariadb-operator:[0-9.]+$

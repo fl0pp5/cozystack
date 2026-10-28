@@ -1,0 +1,66 @@
+suite: MariaDB images follow the image override table
+
+# mariadb-operator runs the server and the metrics exporter from the images
+# the MariaDB resource names, which the post-renderer does not see, so the
+# chart applies the platform's override table to both. The server image
+# carries the version a release picks, so match can select one.
+
+templates:
+  - templates/mariadb.yaml
+release:
+  name: mariadb-test
+  namespace: tenant-test
+set:
+  _namespace:
+    host: example.org
+documentSelector:
+  path: kind
+  value: MariaDB
+tests:
+  - it: names the upstream images without a table
+    asserts:
+      - matchRegex:
+          path: spec.image
+          pattern: ^mariadb:[0-9]+\.[0-9]+\.[0-9]+$
+      - equal:
+          path: spec.metrics.exporter.image
+          value: prom/mysqld-exporter:v0.15.1
+
+  - it: rewrites the server image of the version an entry matches
+    set:
+      version: v11.8
+      _cluster:
+        image-overrides:
+          - name: mariadb
+            match: {tag: 11.8.5}
+            newName: registry.example.org/os/mariadb
+            newTag: 11.8.5-os1
+    asserts:
+      - equal:
+          path: spec.image
+          value: registry.example.org/os/mariadb:11.8.5-os1
+
+  - it: leaves other versions alone
+    set:
+      version: v11.4
+      _cluster:
+        image-overrides:
+          - name: mariadb
+            match: {tag: 11.8.5}
+            newName: registry.example.org/os/mariadb
+    asserts:
+      - equal:
+          path: spec.image
+          value: mariadb:11.4.9
+
+  - it: rewrites the exporter image
+    set:
+      _cluster:
+        image-overrides:
+          - name: prom/mysqld-exporter
+            newName: registry.example.org/os/mysqld-exporter
+            digest: sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f
+    asserts:
+      - equal:
+          path: spec.metrics.exporter.image
+          value: registry.example.org/os/mysqld-exporter@sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f
