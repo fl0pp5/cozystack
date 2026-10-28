@@ -11,7 +11,11 @@ release:
 # cozystack-operator and cozystack-api read it for the releases they build and
 # cozy-lib.postRenderers for the ones charts render. Both Go readers refuse a
 # table they cannot apply, so the render must refuse it first, naming the bad
-# entry.
+# entry. These cases check entries on their own, so the release image list is
+# left empty here; tests/image_overrides_release_checks_test.yaml checks the
+# table against one.
+set:
+  _images: []
 
 tests:
   - it: carries no image-overrides key by default

@@ -16,3 +16,7 @@ WARNING: deletion-protection guardrail is NOT active on this cluster.
   the next upgrade with no further migration step required.
 
 {{- end }}
+{{- with include "cozystack.platform.imageOverridesWarnings" . }}
+
+{{ . }}
+{{- end }}

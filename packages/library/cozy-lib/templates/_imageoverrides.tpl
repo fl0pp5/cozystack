@@ -110,11 +110,7 @@ Usage: {{ include "cozy-lib.imageWith" (list "quay.io/org/app:v1" $table) }}
 {{- define "cozy-lib.imageWith" -}}
 {{- $ref := index . 0 }}
 {{- range (index . 1 | default list) }}
-{{-   $selector := .name }}
-{{-   with .match }}
-{{-     $selector = ternary (printf "%s:%s" $selector .tag) (printf "%s@%s" $selector .digest) (not (empty .tag)) }}
-{{-   end }}
-{{-   if regexMatch (printf "^%s(:[a-zA-Z0-9_.{}-]*)?(@sha256:[a-zA-Z0-9_.{}-]*)?$" $selector) $ref }}
+{{-   if include "cozy-lib.imageOverrides.selects" (list $ref .) }}
 {{-     $parts := include "cozy-lib.imageOverrides.split" $ref | fromYaml }}
 {{-     $name := .newName | default $parts.name }}
 {{-     $tag := $parts.tag }}
@@ -139,6 +135,22 @@ Usage: {{ include "cozy-lib.imageWith" (list "quay.io/org/app:v1" $table) }}
 {{-   end }}
 {{- end }}
 {{- $ref }}
+{{- end }}
+
+{{/*
+"true" when an entry of the table applies to a reference, nothing otherwise:
+kustomize turns the name, with match folded in as name:tag or name@digest,
+into a regular expression the whole reference must match, with any tag and
+digest the selector leaves out.
+Usage: {{ if include "cozy-lib.imageOverrides.selects" (list $ref $entry) }}
+*/}}
+{{- define "cozy-lib.imageOverrides.selects" -}}
+{{- $entry := index . 1 }}
+{{- $selector := $entry.name }}
+{{- with $entry.match }}
+{{-   $selector = ternary (printf "%s:%s" $selector .tag) (printf "%s@%s" $selector .digest) (not (empty .tag)) }}
+{{- end }}
+{{- if regexMatch (printf "^%s(:[a-zA-Z0-9_.{}-]*)?(@sha256:[a-zA-Z0-9_.{}-]*)?$" $selector) (index . 0) }}true{{ end }}
 {{- end }}
 
 {{/*

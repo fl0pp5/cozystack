@@ -807,14 +807,27 @@ branding: {}
 # Kubernetes clusters, but not Flux or cozystack-operator, which the installer
 # deploys; the fields are those of a kustomize `images` entry. A
 # digest replaces the tag that was pinned; newTag alongside it only labels the
-# reference. Image references outside container specs (arguments, environment
-# variables, fields of custom resources) and images an operator picks at
-# runtime are not rewritten.
+# reference. Charts that render image references outside container specs
+# (arguments, environment variables, fields of custom resources) apply the
+# same entries there.
 #
 # An image the platform runs at several versions takes one entry per version
 # to retag or repin: match narrows an entry to the references carrying that
 # tag or digest. Entries apply in order, each to what the ones before it
-# produced.
+# produced, so an entry with match goes before one that renames the same
+# image.
+#
+# files/images.yaml of this chart lists the images the release runs, and the
+# table is checked against it: an entry with match for a version the release
+# does not run, an entry with match for an image whose chart cannot select a
+# version, and a table that changes its own result are refused.
+#
+# imageRewrites renames every listed image whose name starts with prefix
+# (busybox counting as docker.io/library/busybox), keeping the rest of the
+# name and the tag; an entry in imageOverrides for the same name takes
+# precedence. The digest is kept unless dropDigest is set, which a set rebuilt
+# under the same tags needs. allowedRegistries refuses a table that leaves any
+# listed image outside the given registries.
 #
 #   imageOverrides:
 #     - name: registry.k8s.io/sig-storage/csi-attacher
@@ -825,6 +838,11 @@ branding: {}
 #       match: {tag: "7.3.63"}
 #       newName: registry.example.org/os/fdb-kubernetes-monitor
 #       newTag: "7.3.63-os1"
+#   imageRewrites:
+#     - prefix: ghcr.io/cozystack/cozystack/
+#       newPrefix: registry.example.org/os/cozystack-
+#       dropDigest: true
+#   allowedRegistries: [registry.example.org]
 registries: {}
 # Resource allocation ratios
 resources:

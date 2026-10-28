@@ -1,0 +1,203 @@
+suite: image override table checked against the images the release runs
+templates:
+  - templates/apps.yaml
+release:
+  name: cozy-platform
+  namespace: cozy-system
+# The table is written by name, while what it must cover is the list of
+# images the release runs (files/images.yaml, written by hack/image-list.sh).
+# The platform expands prefix rules over that list and refuses a table that
+# would leave an entry doing nothing where that matters, rewrite a reference
+# differently on a second pass, or leave an image outside the allowed
+# registries. _images stands in for the list so that these cases do not
+# follow version bumps.
+set:
+  _images:
+    - {ref: "foundationdb/fdb-kubernetes-monitor:7.3.63", chart: system/foundationdb-operator, route: 0}
+    - {ref: "foundationdb/fdb-kubernetes-monitor:7.4.1", chart: system/foundationdb-operator, route: 0}
+    - {ref: "quay.io/jetstack/cert-manager-acmesolver:v1.20.2", chart: system/cert-manager, route: 2}
+    - {ref: "victoriametrics/vmagent:v1.136.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", chart: system/monitoring-agents, route: 1, joinsTag: true}
+    - {ref: "ghcr.io/cozystack/cozystack/kubeovn:v1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", chart: system/kubeovn, route: 0}
+    - {ref: "ghcr.io/cozystack/cozystack/kamaji", chart: system/kamaji, route: 1}
+    - {ref: "busybox:latest", chart: system/monitoring-agents, route: 0}
+    - {ref: "docker.io/library/busybox:1.36", chart: apps/mariadb, route: 0}
+tests:
+  - it: accepts an entry that selects a version the release runs
+    set:
+      registries:
+        imageOverrides:
+          - name: foundationdb/fdb-kubernetes-monitor
+            match: {tag: 7.3.63}
+            newTag: 7.3.63-os1
+    asserts:
+      - matchRegex:
+          path: stringData["values.yaml"]
+          pattern: 'newTag: 7\.3\.63-os1'
+
+  - it: refuses an entry for a version the release no longer runs
+    set:
+      registries:
+        imageOverrides:
+          - name: foundationdb/fdb-kubernetes-monitor
+            match: {tag: 7.1.0}
+            newTag: 7.1.0-os1
+    asserts:
+      - failedTemplate:
+          errorPattern: 'foundationdb/fdb-kubernetes-monitor:7\.1\.0 matches no image this release runs'
+
+  - it: refuses a version selector for an image only route 2 reaches
+    set:
+      registries:
+        imageOverrides:
+          - name: quay.io/jetstack/cert-manager-acmesolver
+            match: {tag: v1.20.2}
+            newTag: v1.20.2-os1
+    asserts:
+      - failedTemplate:
+          errorPattern: 'reaches that image only through chart values that cannot select one'
+
+  - it: refuses a digest without a tag for an image an operator rebuilds as repository:tag
+    set:
+      registries:
+        imageOverrides:
+          - name: victoriametrics/vmagent
+            digest: sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f
+    asserts:
+      - failedTemplate:
+          errorPattern: 'sets a digest without newTag, but the operator system/monitoring-agents configures builds'
+
+  - it: accepts that digest together with a tag
+    set:
+      registries:
+        imageOverrides:
+          - name: victoriametrics/vmagent
+            newTag: v1.136.0
+            digest: sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f
+    asserts:
+      - matchRegex:
+          path: stringData["values.yaml"]
+          pattern: 'name: victoriametrics/vmagent'
+
+  - it: refuses a table that rewrites its own result
+    set:
+      registries:
+        imageOverrides:
+          - name: registry.example.org/os/fdb-kubernetes-monitor
+            newName: registry.example.org/os/fdb-legacy
+          - name: foundationdb/fdb-kubernetes-monitor
+            newName: registry.example.org/os/fdb-kubernetes-monitor
+    asserts:
+      - failedTemplate:
+          errorPattern: 'not idempotent on foundationdb/fdb-kubernetes-monitor:7\.3\.63 \(system/foundationdb-operator\): registry\.example\.org/os/fdb-kubernetes-monitor:7\.3\.63, then registry\.example\.org/os/fdb-legacy:7\.3\.63'
+
+  - it: accepts the same chain in order
+    set:
+      registries:
+        imageOverrides:
+          - name: foundationdb/fdb-kubernetes-monitor
+            newName: registry.example.org/os/fdb-kubernetes-monitor
+          - name: registry.example.org/os/fdb-kubernetes-monitor
+            newName: registry.example.org/os/fdb-legacy
+    asserts:
+      - matchRegex:
+          path: stringData["values.yaml"]
+          pattern: 'fdb-legacy'
+
+  - it: expands a prefix rule, keeping the digest by default
+    set:
+      registries:
+        imageRewrites:
+          - prefix: ghcr.io/cozystack/cozystack/
+            newPrefix: registry.example.org/os/cozystack-
+    asserts:
+      - matchRegex:
+          path: stringData["values.yaml"]
+          pattern: '(?m)^    - name: ghcr\.io/cozystack/cozystack/kubeovn\n      newName: registry\.example\.org/os/cozystack-kubeovn\n    - name: ghcr\.io/cozystack/cozystack/kamaji\n      newName: registry\.example\.org/os/cozystack-kamaji$'
+
+  - it: drops the digest by retagging each pinned version before the renames
+    set:
+      registries:
+        imageRewrites:
+          - prefix: ghcr.io/cozystack/cozystack/
+            newPrefix: registry.example.org/os/cozystack-
+            dropDigest: true
+    asserts:
+      - matchRegex:
+          path: stringData["values.yaml"]
+          pattern: '(?m)^    - match:\n        tag: v1\.0\n      name: ghcr\.io/cozystack/cozystack/kubeovn\n      newName: registry\.example\.org/os/cozystack-kubeovn\n      newTag: v1\.0\n    - name: ghcr\.io/cozystack/cozystack/kubeovn\n'
+
+  - it: compares the prefix with the normalized name but keeps the name as written
+    set:
+      registries:
+        imageRewrites:
+          - prefix: docker.io/library/
+            newPrefix: registry.example.org/library/
+    asserts:
+      - matchRegex:
+          path: stringData["values.yaml"]
+          pattern: '(?m)^    - name: busybox\n      newName: registry\.example\.org/library/busybox\n    - name: docker\.io/library/busybox\n      newName: registry\.example\.org/library/busybox$'
+
+  - it: lets an explicit entry take precedence over the rule
+    set:
+      registries:
+        imageOverrides:
+          - name: ghcr.io/cozystack/cozystack/kubeovn
+            newName: registry.example.org/os/kube-ovn
+        imageRewrites:
+          - prefix: ghcr.io/cozystack/cozystack/
+            newPrefix: registry.example.org/os/cozystack-
+    asserts:
+      - notMatchRegex:
+          path: stringData["values.yaml"]
+          pattern: 'cozystack-kubeovn'
+      - matchRegex:
+          path: stringData["values.yaml"]
+          pattern: 'cozystack-kamaji'
+
+  - it: refuses a rule with an unknown field
+    set:
+      registries:
+        imageRewrites:
+          - prefix: ghcr.io/
+            newPrefix: registry.example.org/
+            keepTag: true
+    asserts:
+      - failedTemplate:
+          errorPattern: 'registries.imageRewrites\[0\]: unknown field "keepTag"'
+
+  - it: refuses an image outside the allowed registries, listing it
+    set:
+      registries:
+        allowedRegistries: [registry.example.org]
+        imageRewrites:
+          - prefix: ghcr.io/cozystack/cozystack/
+            newPrefix: registry.example.org/os/cozystack-
+    asserts:
+      - failedTemplate:
+          errorPattern: 'busybox:latest \(system/monitoring-agents\) -> busybox:latest'
+
+  - it: accepts a table that moves every image into the allowed registries
+    set:
+      registries:
+        allowedRegistries: [registry.example.org]
+        imageRewrites:
+          - prefix: docker.io/
+            newPrefix: registry.example.org/docker.io/
+          - prefix: quay.io/
+            newPrefix: registry.example.org/quay.io/
+          - prefix: ghcr.io/
+            newPrefix: registry.example.org/ghcr.io/
+    asserts:
+      - matchRegex:
+          path: stringData["values.yaml"]
+          pattern: 'newName: registry\.example\.org/docker\.io/library/busybox'
+
+  - it: refuses a rule with an empty prefix
+    set:
+      registries:
+        imageRewrites:
+          - prefix: ""
+            newPrefix: registry.example.org/mirror/
+    asserts:
+      - failedTemplate:
+          errorPattern: 'prefix and newPrefix must be non-empty strings'

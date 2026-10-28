@@ -1,0 +1,29 @@
+suite: NOTES warn about image override entries that match nothing
+templates:
+  - templates/NOTES.txt
+# An entry without match that applies to no image the release runs is most
+# likely a misspelt name. It is not refused, since an image can leave a
+# release while a table written for an older one still lists it.
+set:
+  _images:
+    - {ref: "foundationdb/fdb-kubernetes-monitor:7.3.63", chart: system/foundationdb-operator, route: 0}
+tests:
+  - it: warns about an entry that matches no image
+    set:
+      registries:
+        imageOverrides:
+          - name: foundationdb/fdb-kubernetes-montor
+            newName: registry.example.org/os/fdb-kubernetes-monitor
+    asserts:
+      - matchRegexRaw:
+          pattern: 'WARNING: registries.imageOverrides: foundationdb/fdb-kubernetes-montor matches no image this release runs'
+
+  - it: says nothing about an entry that matches
+    set:
+      registries:
+        imageOverrides:
+          - name: foundationdb/fdb-kubernetes-monitor
+            newName: registry.example.org/os/fdb-kubernetes-monitor
+    asserts:
+      - notMatchRegexRaw:
+          pattern: 'registries.imageOverrides'

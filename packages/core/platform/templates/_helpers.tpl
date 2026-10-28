@@ -287,11 +287,13 @@ sliced into /24s ever allowed.
 {{- end }}
 
 {{/*
-Validated registries.imageOverrides, as a YAML list. It travels to every
-release as _cluster.image-overrides; cozystack-operator and cozystack-api
-refuse to build releases from a table they cannot apply, so a broken table
-fails this render instead, where the error names the value that is wrong.
-The checks match pkg/imageoverrides.Validate.
+The image override table every release gets as _cluster.image-overrides, as
+a YAML list: registries.imageOverrides validated, then the entries
+registries.imageRewrites expands to, then checked against the images the
+release runs (files/images.yaml). cozystack-operator and cozystack-api refuse
+to build releases from a table they cannot apply, so a broken table fails
+this render instead, where the error names the value that is wrong. The
+checks of single entries match pkg/imageoverrides.Validate.
 */}}
 {{- define "cozystack.platform.imageOverrides" -}}
 {{- /* Checked before defaulting: default would turn false or 0 into an empty
@@ -364,5 +366,214 @@ per tag or digest besides the entry without match. */}}
 {{-   end }}
 {{-   $_ := set $seen $selector true }}
 {{- end }}
-{{- toYaml $overrides }}
+{{- $images := (include "cozystack.platform.imageList" . | fromYaml).images }}
+{{- $table := concat $overrides ((include "cozystack.platform.imageRewrites" (list . $overrides $images) | fromYaml).entries | default list) }}
+{{- include "cozystack.platform.checkImageOverrides" (list . $table $images) }}
+{{- toYaml $table }}
+{{- end }}
+
+{{/*
+The images the release runs, as YAML under "images": each with ref, chart,
+route (0 container, 1 cozy-lib helper, 2 vendored value set in parts, 3
+patched vendored template) and joinsTag when an operator rebuilds it as
+repository:tag. hack/image-list.sh writes files/images.yaml. _images replaces
+the file in this chart's tests, so that they do not follow every version bump.
+*/}}
+{{- define "cozystack.platform.imageList" -}}
+{{- $images := .Values._images }}
+{{- if kindIs "invalid" $images }}
+{{-   $images = (.Files.Get "files/images.yaml" | fromYaml).images }}
+{{- end }}
+{{- dict "images" ($images | default list) | toYaml }}
+{{- end }}
+
+{{/*
+The registry a reference is pulled from: its first path component when that
+looks like a host, docker.io otherwise.
+*/}}
+{{- define "cozystack.platform.imageRegistry" -}}
+{{- if regexMatch "^([^/]*[.:][^/]*|localhost)/" . }}{{ regexFind "^[^/]+" . }}{{ else }}docker.io{{ end }}
+{{- end }}
+
+{{/*
+An image name as Docker reads it: busybox is docker.io/library/busybox and
+clastix/kubectl is docker.io/clastix/kubectl. The tree writes some images
+both ways, and a prefix rule for docker.io/ must catch both.
+*/}}
+{{- define "cozystack.platform.normalizedImageName" -}}
+{{- if regexMatch "^([^/]*[.:][^/]*|localhost)/" . }}{{ . }}
+{{- else if contains "/" . }}docker.io/{{ . }}
+{{- else }}docker.io/library/{{ . }}
+{{- end }}
+{{- end }}
+
+{{/*
+The entries registries.imageRewrites expands to, as YAML under "entries".
+A rule renames every image of the release whose normalized name starts with
+prefix, keeping the rest of the name and the tag; the entry carries the name
+as the tree writes it. The first rule that applies wins, and an explicit
+entry with the same name and match takes precedence. With dropDigest an image
+pinned by digest gets an entry per tag that retags it to the same tag, which
+is how kustomize drops a digest; those come before the plain renames, which
+would otherwise rename the image before they are reached.
+Call as (list $ <explicit entries> <images>).
+*/}}
+{{- define "cozystack.platform.imageRewrites" -}}
+{{- $root := index . 0 }}
+{{- $rules := ($root.Values.registries | default dict).imageRewrites }}
+{{- if and (not (kindIs "invalid" $rules)) (not (kindIs "slice" $rules)) }}
+{{-   fail (printf "registries.imageRewrites must be a list, got %s" (kindOf $rules)) }}
+{{- end }}
+{{- range $i, $r := $rules | default list }}
+{{-   if not (kindIs "map" $r) }}
+{{-     fail (printf "registries.imageRewrites[%d] must be a map" $i) }}
+{{-   end }}
+{{-   range $k, $v := $r }}
+{{-     if not (has $k (list "prefix" "newPrefix" "dropDigest")) }}
+{{-       fail (printf "registries.imageRewrites[%d]: unknown field %q" $i $k) }}
+{{-     end }}
+{{-   end }}
+{{-   if not (and (kindIs "string" $r.prefix) $r.prefix (kindIs "string" $r.newPrefix) $r.newPrefix) }}
+{{-     fail (printf "registries.imageRewrites[%d]: prefix and newPrefix must be non-empty strings" $i) }}
+{{-   end }}
+{{-   if and (hasKey $r "dropDigest") (not (kindIs "bool" $r.dropDigest)) }}
+{{-     fail (printf "registries.imageRewrites[%d].dropDigest must be true or false" $i) }}
+{{-   end }}
+{{- end }}
+{{- $taken := dict }}
+{{- range index . 1 }}
+{{-   $_ := set $taken (printf "%s|%s|%s" .name (dig "match" "tag" "" .) (dig "match" "digest" "" .)) true }}
+{{- end }}
+{{- $retags := list }}
+{{- $renames := list }}
+{{- range $image := index . 2 }}
+{{-   $parts := include "cozy-lib.imageOverrides.split" $image.ref | fromYaml }}
+{{-   $normalized := include "cozystack.platform.normalizedImageName" $parts.name }}
+{{-   $rule := dict }}
+{{-   range $rules | default list }}
+{{-     if and (not $rule) (hasPrefix .prefix $normalized) }}
+{{-       $rule = . }}
+{{-     end }}
+{{-   end }}
+{{-   if $rule }}
+{{-     $newName := printf "%s%s" $rule.newPrefix (trimPrefix $rule.prefix $normalized) }}
+{{-     if and $rule.dropDigest $parts.digest }}
+{{-       if not $parts.tag }}
+{{-         fail (printf "registries.imageRewrites: %s has a digest and no tag, so dropDigest cannot drop it; list it in imageOverrides with its new digest" $image.ref) }}
+{{-       end }}
+{{-       $key := printf "%s|%s|" $parts.name $parts.tag }}
+{{-       if not (hasKey $taken $key) }}
+{{-         $_ := set $taken $key true }}
+{{-         $retags = append $retags (dict "name" $parts.name "match" (dict "tag" $parts.tag) "newName" $newName "newTag" $parts.tag) }}
+{{-       end }}
+{{-     end }}
+{{-     $key := printf "%s||" $parts.name }}
+{{-     if not (hasKey $taken $key) }}
+{{-       $_ := set $taken $key true }}
+{{-       $renames = append $renames (dict "name" $parts.name "newName" $newName) }}
+{{-     end }}
+{{-   end }}
+{{- end }}
+{{- dict "entries" (concat $retags $renames) | toYaml }}
+{{- end }}
+
+{{/*
+Checks the table against the images the release runs; renders nothing.
+- An entry with match that applies to no image names a version the release
+  does not run, most likely one an upgrade moved past: without the check that
+  image would silently fall back to its upstream name.
+- Route 2 cannot honour match, so an entry with match that applies only to
+  images route 2 reaches would do nothing.
+- An operator that rebuilds a reference as repository:tag cannot express a
+  digest without a tag, so an entry that leaves only a digest is refused for
+  its images.
+- A reference can pass through a helper and then the post-renderer, so the
+  table must leave its own result unchanged.
+- With allowedRegistries, every image must end up in one of them.
+Without a list of images, as in a chart built without one, only the entries
+themselves are checked.
+Call as (list $ <table> <images>).
+*/}}
+{{- define "cozystack.platform.checkImageOverrides" -}}
+{{- $root := index . 0 }}
+{{- $table := index . 1 }}
+{{- $images := index . 2 }}
+{{- if $images }}
+{{-   range $e := $table }}
+{{-     $hits := list }}
+{{-     range $images }}
+{{-       if include "cozy-lib.imageOverrides.selects" (list .ref $e) }}
+{{-         $hits = append $hits . }}
+{{-       end }}
+{{-     end }}
+{{-     $selector := $e.name }}
+{{-     with $e.match }}
+{{-       $selector = ternary (printf "%s:%s" $selector .tag) (printf "%s@%s" $selector .digest) (not (empty .tag)) }}
+{{-     end }}
+{{-     if $e.match }}
+{{-       if not $hits }}
+{{-         fail (printf "registries.imageOverrides: %s matches no image this release runs; see files/images.yaml of the platform chart for the versions it does" $selector) }}
+{{-       end }}
+{{-       $honoured := false }}
+{{-       range $hits }}
+{{-         if ne (toString .route) "2" }}
+{{-           $honoured = true }}
+{{-         end }}
+{{-       end }}
+{{-       if not $honoured }}
+{{-         fail (printf "registries.imageOverrides: %s selects a version, but %s reaches that image only through chart values that cannot select one; drop match" $selector (index $hits 0).chart) }}
+{{-       end }}
+{{-     end }}
+{{-     if and $e.digest (not $e.newTag) }}
+{{-       range $hits }}
+{{-         if .joinsTag }}
+{{-           fail (printf "registries.imageOverrides: %s sets a digest without newTag, but the operator %s configures builds %s as repository:tag; set newTag as well" $selector .chart .ref) }}
+{{-         end }}
+{{-       end }}
+{{-     end }}
+{{-   end }}
+{{-   $allowed := ($root.Values.registries | default dict).allowedRegistries }}
+{{-   if and (not (kindIs "invalid" $allowed)) (not (kindIs "slice" $allowed)) }}
+{{-     fail (printf "registries.allowedRegistries must be a list, got %s" (kindOf $allowed)) }}
+{{-   end }}
+{{-   $outside := list }}
+{{-   range $images }}
+{{-     $once := include "cozy-lib.imageWith" (list .ref $table) }}
+{{-     $twice := include "cozy-lib.imageWith" (list $once $table) }}
+{{-     if ne $once $twice }}
+{{-       fail (printf "registries.imageOverrides: the table is not idempotent on %s (%s): %s, then %s; order the entries so that none rewrites what another produced" .ref .chart $once $twice) }}
+{{-     end }}
+{{-     if and $allowed (not (has (include "cozystack.platform.imageRegistry" $once) $allowed)) }}
+{{-       $outside = append $outside (printf "%s (%s) -> %s" .ref .chart $once) }}
+{{-     end }}
+{{-   end }}
+{{-   if $outside }}
+{{-     fail (printf "registries.allowedRegistries: %d images resolve outside %s:\n  %s\nNode images and images operators pick at runtime are not in this list; cover them with registry mirrors" (len $outside) (join ", " $allowed) (join "\n  " (uniq $outside))) }}
+{{-   end }}
+{{- end }}
+{{- end }}
+
+{{/*
+Warnings about the image override table for NOTES.txt: an entry without
+match that applies to no image the release runs is most likely a misspelt
+name.
+*/}}
+{{- define "cozystack.platform.imageOverridesWarnings" -}}
+{{- $images := (include "cozystack.platform.imageList" . | fromYaml).images }}
+{{- if $images }}
+{{-   range (include "cozystack.platform.imageOverrides" . | fromYamlArray) }}
+{{-     $e := . }}
+{{-     if not $e.match }}
+{{-       $hit := false }}
+{{-       range $images }}
+{{-         if include "cozy-lib.imageOverrides.selects" (list .ref $e) }}
+{{-           $hit = true }}
+{{-         end }}
+{{-       end }}
+{{-       if not $hit }}
+WARNING: registries.imageOverrides: {{ $e.name }} matches no image this release runs; check the name against files/images.yaml of the platform chart.
+{{-       end }}
+{{-     end }}
+{{-   end }}
+{{- end }}
 {{- end }}

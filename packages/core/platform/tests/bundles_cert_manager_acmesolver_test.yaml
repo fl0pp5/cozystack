@@ -84,7 +84,7 @@ tests:
           value:
             tag: v1.20.2-os1
 
-  - it: ignores entries for other images and entries that select a version
+  - it: ignores entries for other images
     template: templates/bundles/system.yaml
     documentSelector:
       path: metadata.name
@@ -94,9 +94,22 @@ tests:
         imageOverrides:
           - name: quay.io/jetstack/cert-manager-controller
             newName: registry.example.org/os/cert-manager-controller
+    asserts:
+      - notExists:
+          path: spec.components.cert-manager.values.cert-manager.acmesolver
+
+  # The chart takes the image in parts with no version selector, so an entry
+  # that selects a version would do nothing; the platform refuses it.
+  - it: refuses an entry that selects a version of the solver image
+    template: templates/bundles/system.yaml
+    set:
+      _images:
+        - {ref: "quay.io/jetstack/cert-manager-acmesolver:v1.20.2", chart: system/cert-manager, route: 2}
+      registries:
+        imageOverrides:
           - name: quay.io/jetstack/cert-manager-acmesolver
             match: {tag: v1.20.2}
             newTag: v1.20.2-os1
     asserts:
-      - notExists:
-          path: spec.components.cert-manager.values.cert-manager.acmesolver
+      - failedTemplate:
+          errorPattern: "selects a version, but system/cert-manager reaches that image only through chart values that cannot select one"
