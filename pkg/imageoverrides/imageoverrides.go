@@ -32,7 +32,42 @@ const ClusterKey = "image-overrides"
 // from when a component is not told otherwise.
 var DefaultSecret = types.NamespacedName{Namespace: "cozy-system", Name: "cozystack-values"}
 
-var digestRE = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+var (
+	digestRE = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+	tagRE    = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$`)
+	// kustomize builds a regular expression from the name without escaping
+	// it, so a name outside the reference alphabet would not compile and the
+	// post-renderer would fail on every release.
+	nameRE = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9._/:-]*[A-Za-z0-9])?$`)
+)
+
+// Match narrows an entry to one version of the image.
+type Match struct {
+	Tag    string `json:"tag,omitempty"`
+	Digest string `json:"digest,omitempty"`
+}
+
+// Entry is one row of the table as the platform values carry it.
+type Entry struct {
+	kustomize.Image
+	Match *Match `json:"match,omitempty"`
+}
+
+// selector is the name kustomize is given for the entry. kustomize matches
+// `^<name>(:<tag>)?(@<digest>)?$` and rewrites the parts of the reference it
+// matched, so a name that carries a tag or digest selects exactly that
+// version. The Flux CRD documents the name as tag-less; the parity tests pin
+// this behaviour at the kustomize version the embedded helm-controller uses.
+func (e Entry) selector() string {
+	switch {
+	case e.Match == nil:
+		return e.Name
+	case e.Match.Tag != "":
+		return e.Name + ":" + e.Match.Tag
+	default:
+		return e.Name + "@" + e.Match.Digest
+	}
+}
 
 // Parse reads the table from the values.yaml payload of a cozystack-values
 // Secret. A payload without the key yields no overrides.
@@ -54,35 +89,57 @@ func Parse(valuesYAML []byte) ([]kustomize.Image, error) {
 	if err != nil {
 		return nil, fmt.Errorf("encoding %s: %w", ClusterKey, err)
 	}
-	var images []kustomize.Image
-	if err := yaml.UnmarshalStrict(encoded, &images); err != nil {
+	var entries []Entry
+	if err := yaml.UnmarshalStrict(encoded, &entries); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", ClusterKey, err)
 	}
-	if err := Validate(images); err != nil {
+	return Compile(entries)
+}
+
+// Compile validates the entries and turns them into the kustomize images
+// every route applies, with a version selector folded into the name.
+func Compile(entries []Entry) ([]kustomize.Image, error) {
+	if err := Validate(entries); err != nil {
 		return nil, err
+	}
+	if len(entries) == 0 {
+		return nil, nil
+	}
+	images := make([]kustomize.Image, len(entries))
+	for i, e := range entries {
+		images[i] = e.Image
+		images[i].Name = e.selector()
 	}
 	return images, nil
 }
 
 // Validate rejects entries kustomize would apply wrongly or not at all.
-func Validate(images []kustomize.Image) error {
-	seen := make(map[string]bool, len(images))
-	for i, img := range images {
+func Validate(entries []Entry) error {
+	seen := make(map[string]bool, len(entries))
+	for i, e := range entries {
 		switch {
-		case img.Name == "":
+		case e.Name == "":
 			return fmt.Errorf("%s[%d]: name is required", ClusterKey, i)
-		case strings.Contains(img.Name, "@") || strings.Contains(img.Name[strings.LastIndex(img.Name, "/")+1:], ":"):
+		case strings.Contains(e.Name, "@") || strings.Contains(e.Name[strings.LastIndex(e.Name, "/")+1:], ":"):
 			// kustomize matches the name without tag or digest; a name that
-			// carries one never matches anything.
-			return fmt.Errorf("%s[%d]: name %q must not carry a tag or digest", ClusterKey, i, img.Name)
-		case img.NewName == "" && img.NewTag == "" && img.Digest == "":
-			return fmt.Errorf("%s[%d]: %q sets none of newName, newTag, digest", ClusterKey, i, img.Name)
-		case img.Digest != "" && !digestRE.MatchString(img.Digest):
-			return fmt.Errorf("%s[%d]: digest %q is not sha256:<64 hex>", ClusterKey, i, img.Digest)
-		case seen[img.Name]:
-			return fmt.Errorf("%s[%d]: %q is listed twice", ClusterKey, i, img.Name)
+			// carries one never matches anything. A version goes in match.
+			return fmt.Errorf("%s[%d]: name %q must not carry a tag or digest", ClusterKey, i, e.Name)
+		case !nameRE.MatchString(e.Name):
+			return fmt.Errorf("%s[%d]: name %q is not an image name", ClusterKey, i, e.Name)
+		case e.NewName == "" && e.NewTag == "" && e.Digest == "":
+			return fmt.Errorf("%s[%d]: %q sets none of newName, newTag, digest", ClusterKey, i, e.Name)
+		case e.Digest != "" && !digestRE.MatchString(e.Digest):
+			return fmt.Errorf("%s[%d]: digest %q is not sha256:<64 hex>", ClusterKey, i, e.Digest)
+		case e.Match != nil && (e.Match.Tag == "") == (e.Match.Digest == ""):
+			return fmt.Errorf("%s[%d]: match on %q must set exactly one of tag, digest", ClusterKey, i, e.Name)
+		case e.Match != nil && e.Match.Tag != "" && !tagRE.MatchString(e.Match.Tag):
+			return fmt.Errorf("%s[%d]: match.tag %q is not an image tag", ClusterKey, i, e.Match.Tag)
+		case e.Match != nil && e.Match.Digest != "" && !digestRE.MatchString(e.Match.Digest):
+			return fmt.Errorf("%s[%d]: match.digest %q is not sha256:<64 hex>", ClusterKey, i, e.Match.Digest)
+		case seen[e.selector()]:
+			return fmt.Errorf("%s[%d]: %q is listed twice", ClusterKey, i, e.selector())
 		}
-		seen[img.Name] = true
+		seen[e.selector()] = true
 	}
 	return nil
 }

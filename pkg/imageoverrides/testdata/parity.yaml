@@ -1,0 +1,4279 @@
+# Shared by every implementation of the image override rules: pkg/imageoverrides
+# (Apply, and kustomize through krusty) and the cozy-lib helpers. Regenerate the
+# generated cases and every want with: UPDATE_PARITY=1 go test ./pkg/imageoverrides -run TestParity
+cases:
+- name: match on a tag rewrites that version
+  ref: foundationdb/fdb-kubernetes-monitor:7.3.63
+  table:
+  - match:
+      tag: 7.3.63
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.example.org/os/fdb-kubernetes-monitor
+    newTag: 7.3.63-os1
+  want: registry.example.org/os/fdb-kubernetes-monitor:7.3.63-os1
+- name: match on a tag leaves the other version alone
+  ref: foundationdb/fdb-kubernetes-monitor:7.4.1
+  table:
+  - match:
+      tag: 7.3.63
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.example.org/os/fdb-kubernetes-monitor
+    newTag: 7.3.63-os1
+  want: foundationdb/fdb-kubernetes-monitor:7.4.1
+- name: an entry without match moves every version onto its tag
+  ref: foundationdb/fdb-kubernetes-monitor:7.4.1
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newTag: 7.3.63-os1
+  want: foundationdb/fdb-kubernetes-monitor:7.3.63-os1
+- name: match on a tag replaces the digest the reference carries
+  ref: ghcr.io/cloudnative-pg/postgresql:16.11@sha256:1111111111111111111111111111111111111111111111111111111111111111
+  table:
+  - digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
+    match:
+      tag: "16.11"
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.example.org/os/postgresql
+  want: registry.example.org/os/postgresql@sha256:2222222222222222222222222222222222222222222222222222222222222222
+- name: a tag prefix does not match
+  ref: foundationdb/fdb-kubernetes-monitor:7.3.63
+  table:
+  - match:
+      tag: "7.3"
+    name: foundationdb/fdb-kubernetes-monitor
+    newTag: wrong
+  want: foundationdb/fdb-kubernetes-monitor:7.3.63
+- name: match on a digest rewrites only that digest
+  ref: foundationdb/fdb-kubernetes-monitor@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.example.org/os/fdb-kubernetes-monitor
+  want: registry.example.org/os/fdb-kubernetes-monitor@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: match on a digest leaves another digest alone
+  ref: foundationdb/fdb-kubernetes-monitor@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.example.org/os/fdb-kubernetes-monitor
+  want: foundationdb/fdb-kubernetes-monitor@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: a registry port is not a tag
+  ref: registry.example.org:5000/os/kubeovn:v1.15.26
+  table:
+  - name: registry.example.org:5000/os/kubeovn
+    newName: registry.os/kubeovn
+  want: registry.os/kubeovn:v1.15.26
+- name: names are not normalized
+  ref: redis:7.2
+  table:
+  - name: docker.io/library/redis
+    newName: registry.os/redis
+  want: redis:7.2
+- name: newTag drops the digest
+  ref: ghcr.io/cozystack/cozystack/kubeovn:v1.15.26@sha256:1111111111111111111111111111111111111111111111111111111111111111
+  table:
+  - name: ghcr.io/cozystack/cozystack/kubeovn
+    newTag: 1.15.26
+  want: ghcr.io/cozystack/cozystack/kubeovn:1.15.26
+- name: digest drops the tag
+  ref: ghcr.io/cozystack/cozystack/kubeovn:v1.15.26
+  table:
+  - digest: sha256:2222222222222222222222222222222222222222222222222222222222222222
+    name: ghcr.io/cozystack/cozystack/kubeovn
+  want: ghcr.io/cozystack/cozystack/kubeovn@sha256:2222222222222222222222222222222222222222222222222222222222222222
+- name: entries apply in order, each to the previous result
+  ref: ghcr.io/cloudnative-pg/postgresql:16.11
+  table:
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+  - name: registry.os/postgresql
+    newName: registry.os/pg-legacy
+  want: registry.os/pg-legacy:16.11
+- name: a chain in the other order stops after one step
+  ref: ghcr.io/cloudnative-pg/postgresql:16.11
+  table:
+  - name: registry.os/postgresql
+    newName: registry.os/pg-legacy
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+  want: registry.os/postgresql:16.11
+- name: generated 0
+  ref: quay.io/strimzi/kafka:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: quay.io/strimzi/kafka
+    newTag: "9.9"
+  want: quay.io/strimzi/kafka:9.9
+- name: generated 1
+  ref: localhost:5000/x/y:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: localhost:5000/x/y
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: registry.os/x:7.3.63-os1
+- name: generated 2
+  ref: registry.example.org:5000/a:0.45.1-kafka-3.9.0
+  table:
+  - name: registry.example.org:5000/a
+    newName: redis
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/x
+    newTag: "9.9"
+  want: redis:0.45.1-kafka-3.9.0
+- name: generated 3
+  ref: foundationdb/fdb-kubernetes-monitor:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/x
+    newTag: "9.9"
+  want: foundationdb/fdb-kubernetes-monitor:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 4
+  ref: registry.example.org:5000/a@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "16.11"
+    name: registry.example.org:5000/a
+    newName: registry.os/postgresql
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: registry.example.org:5000/a
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: registry.example.org:5000/a@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 5
+  ref: foundationdb/fdb-kubernetes-monitor:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: foundationdb/fdb-kubernetes-monitor
+    newTag: 7.3.63-os1
+  - name: localhost:5000/x/y
+    newTag: "9.9"
+  want: foundationdb/fdb-kubernetes-monitor:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 6
+  ref: redis:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+    newName: registry.os/x
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: registry.os/x
+    newTag: "9.9"
+  want: registry.os/x:9.9@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 7
+  ref: redis:16.11
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: registry.os/postgresql
+  - match:
+      tag: "1.0"
+    name: redis
+    newName: registry.os/postgresql
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+  want: registry.os/postgresql@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 8
+  ref: foundationdb/fdb-kubernetes-monitor:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      tag: 7.4.1
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: foundationdb/fdb-kubernetes-monitor:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 9
+  ref: docker.io/library/redis:0.45.1-kafka-3.9.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: docker.io/library/redis
+    newName: registry.os/x
+    newTag: "9.9"
+  want: registry.os/x:9.9@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 10
+  ref: foundationdb/fdb-kubernetes-monitor:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: redis
+  want: redis:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 11
+  ref: registry.example.org:5000/a:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: registry.example.org:5000/a
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: registry.example.org:5000/a
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: registry.example.org:5000/a:9.9@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 12
+  ref: registry.example.org:5000/a:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: quay.io/strimzi/kafka
+    newName: registry.os/x
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: registry.example.org:5000/a
+    newName: registry.os/x
+    newTag: "9.9"
+  want: registry.os/x:9.9@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 13
+  ref: registry.example.org:5000/a:16.11
+  table:
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: registry.example.org:5000/a
+    newName: redis
+  want: registry.example.org:5000/a:16.11
+- name: generated 14
+  ref: foundationdb/fdb-kubernetes-monitor:7.3.63
+  table:
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: redis
+  want: redis@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 15
+  ref: redis:1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "1.0"
+    name: redis
+    newName: redis
+  - match:
+      tag: "16.11"
+    name: localhost:5000/x/y
+    newName: redis
+  want: redis@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 16
+  ref: ghcr.io/cloudnative-pg/postgresql:7.3.63
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  - name: docker.io/library/redis
+    newName: registry.os/x
+  want: registry.os/postgresql:7.3.63-os1@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 17
+  ref: quay.io/strimzi/kafka:1.0
+  table:
+  - name: registry.example.org:5000/a
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+    newName: registry.os/x
+  want: registry.os/x@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 18
+  ref: docker.io/library/redis:7.4.1
+  table:
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: docker.io/library/redis
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  - match:
+      tag: v1.2.3-rc.1
+    name: docker.io/library/redis
+    newName: registry.os/x
+    newTag: "9.9"
+  want: docker.io/library/redis:7.4.1
+- name: generated 19
+  ref: redis:0.45.1-kafka-3.9.0
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: redis
+    newName: redis
+  want: redis:0.45.1-kafka-3.9.0
+- name: generated 20
+  ref: ghcr.io/cloudnative-pg/postgresql:7.4.1
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "1.0"
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+  want: ghcr.io/cloudnative-pg/postgresql:7.4.1
+- name: generated 21
+  ref: registry.example.org:5000/a:v1.2.3-rc.1
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: registry.example.org:5000/a
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: registry.os/postgresql:9.9@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 22
+  ref: foundationdb/fdb-kubernetes-monitor:1.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "16.11"
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: foundationdb/fdb-kubernetes-monitor:1.0
+- name: generated 23
+  ref: foundationdb/fdb-kubernetes-monitor@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - match:
+      tag: 7.3.63
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: foundationdb/fdb-kubernetes-monitor@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 24
+  ref: registry.example.org:5000/a:7.4.1
+  table:
+  - match:
+      tag: v1.2.3-rc.1
+    name: quay.io/strimzi/kafka
+    newName: redis
+    newTag: 7.3.63-os1
+  want: registry.example.org:5000/a:7.4.1
+- name: generated 25
+  ref: docker.io/library/redis:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: quay.io/strimzi/kafka
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  - name: docker.io/library/redis
+    newName: registry.os/postgresql
+  want: registry.os/postgresql:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 26
+  ref: redis:1.0
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: localhost:5000/x/y
+    newName: redis
+  want: redis:1.0
+- name: generated 27
+  ref: registry.example.org:5000/a:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: registry.example.org:5000/a
+    newName: redis
+    newTag: 7.3.63-os1
+  - name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: redis:7.3.63-os1
+- name: generated 28
+  ref: quay.io/strimzi/kafka:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      tag: 7.3.63
+    name: quay.io/strimzi/kafka
+    newName: registry.os/x
+  - match:
+      tag: v1.2.3-rc.1
+    name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: quay.io/strimzi/kafka:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 29
+  ref: foundationdb/fdb-kubernetes-monitor:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: registry.example.org:5000/a
+    newName: redis
+    newTag: 7.3.63-os1
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: localhost:5000/x/y
+    newName: redis
+  want: foundationdb/fdb-kubernetes-monitor:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 30
+  ref: ghcr.io/cloudnative-pg/postgresql:0.45.1-kafka-3.9.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: docker.io/library/redis
+  want: ghcr.io/cloudnative-pg/postgresql:0.45.1-kafka-3.9.0
+- name: generated 31
+  ref: ghcr.io/cloudnative-pg/postgresql@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: redis
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: redis@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 32
+  ref: redis:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: localhost:5000/x/y
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: redis:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 33
+  ref: quay.io/strimzi/kafka:0.45.1-kafka-3.9.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "1.0"
+    name: quay.io/strimzi/kafka
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  - name: redis
+    newName: registry.os/x
+  want: quay.io/strimzi/kafka:0.45.1-kafka-3.9.0
+- name: generated 34
+  ref: localhost:5000/x/y:0.45.1-kafka-3.9.0
+  table:
+  - name: localhost:5000/x/y
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: registry.os/postgresql:9.9
+- name: generated 35
+  ref: localhost:5000/x/y:1.0
+  table:
+  - match:
+      tag: "1.0"
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - match:
+      tag: v1.2.3-rc.1
+    name: localhost:5000/x/y
+    newTag: "9.9"
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63-os1
+- name: generated 36
+  ref: ghcr.io/cloudnative-pg/postgresql:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.4.1
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: redis
+  - match:
+      tag: 7.3.63
+    name: registry.example.org:5000/a
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+  want: registry.os/postgresql:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 37
+  ref: foundationdb/fdb-kubernetes-monitor:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: registry.os/postgresql:7.3.63-os1
+- name: generated 38
+  ref: ghcr.io/cloudnative-pg/postgresql:v1.2.3-rc.1
+  table:
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63-os1
+- name: generated 39
+  ref: ghcr.io/cloudnative-pg/postgresql:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: ghcr.io/cloudnative-pg/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 40
+  ref: registry.example.org:5000/a:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/x
+    newTag: "9.9"
+  - match:
+      tag: "16.11"
+    name: redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: registry.example.org:5000/a:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 41
+  ref: docker.io/library/redis:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: localhost:5000/x/y
+    newName: registry.os/x
+    newTag: "9.9"
+  want: docker.io/library/redis:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 42
+  ref: docker.io/library/redis:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 43
+  ref: ghcr.io/cloudnative-pg/postgresql:1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/x
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: redis
+    newTag: "9.9"
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/postgresql
+  want: redis:9.9
+- name: generated 44
+  ref: docker.io/library/redis:1.0
+  table:
+  - match:
+      tag: "16.11"
+    name: docker.io/library/redis
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "1.0"
+    name: localhost:5000/x/y
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: docker.io/library/redis:1.0
+- name: generated 45
+  ref: registry.example.org:5000/a:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: registry.example.org:5000/a
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: v1.2.3-rc.1
+    name: registry.example.org:5000/a
+    newName: registry.os/x
+  want: ghcr.io/cloudnative-pg/postgresql:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 46
+  ref: ghcr.io/cloudnative-pg/postgresql:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      tag: "16.11"
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: redis
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 0.45.1-kafka-3.9.0
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 47
+  ref: localhost:5000/x/y:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: localhost:5000/x/y
+    newName: redis
+  - match:
+      tag: 7.4.1
+    name: quay.io/strimzi/kafka
+    newTag: 7.3.63-os1
+  want: localhost:5000/x/y:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 48
+  ref: docker.io/library/redis:7.4.1
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: docker.io/library/redis
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  - name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql:7.4.1
+- name: generated 49
+  ref: redis:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 50
+  ref: localhost:5000/x/y:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      tag: "1.0"
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: localhost:5000/x/y
+  want: localhost:5000/x/y:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 51
+  ref: redis:7.4.1
+  table:
+  - name: redis
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: registry.os/x:7.3.63-os1
+- name: generated 52
+  ref: foundationdb/fdb-kubernetes-monitor:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "16.11"
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/postgresql
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/postgresql
+  want: registry.os/postgresql@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 53
+  ref: quay.io/strimzi/kafka:v1.2.3-rc.1
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "1.0"
+    name: quay.io/strimzi/kafka
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: quay.io/strimzi/kafka:v1.2.3-rc.1
+- name: generated 54
+  ref: redis:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: redis
+    newTag: "9.9"
+  - name: localhost:5000/x/y
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: redis:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 55
+  ref: foundationdb/fdb-kubernetes-monitor:7.3.63
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - name: docker.io/library/redis
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 56
+  ref: quay.io/strimzi/kafka
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: quay.io/strimzi/kafka
+    newName: registry.os/x
+  want: quay.io/strimzi/kafka
+- name: generated 57
+  ref: ghcr.io/cloudnative-pg/postgresql:v1.2.3-rc.1
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+    newTag: "9.9"
+  want: registry.os/x:9.9@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 58
+  ref: foundationdb/fdb-kubernetes-monitor:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: redis
+    newTag: 7.3.63-os1
+  - match:
+      tag: 7.3.63
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: redis:7.3.63-os1@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 59
+  ref: registry.example.org:5000/a:v1.2.3-rc.1
+  table:
+  - match:
+      tag: v1.2.3-rc.1
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: registry.example.org:5000/a
+    newName: registry.os/x
+  want: registry.example.org:5000/a:v1.2.3-rc.1
+- name: generated 60
+  ref: quay.io/strimzi/kafka:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: quay.io/strimzi/kafka
+    newName: registry.os/postgresql
+  want: registry.os/postgresql:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 61
+  ref: registry.example.org:5000/a:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: docker.io/library/redis
+    newName: registry.os/postgresql
+  - match:
+      tag: v1.2.3-rc.1
+    name: registry.example.org:5000/a
+    newName: redis
+  want: registry.example.org:5000/a:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 62
+  ref: quay.io/strimzi/kafka:v1.2.3-rc.1
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: quay.io/strimzi/kafka
+    newName: registry.os/postgresql
+  - name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: quay.io/strimzi/kafka:v1.2.3-rc.1
+- name: generated 63
+  ref: quay.io/strimzi/kafka:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: registry.example.org:5000/a
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: quay.io/strimzi/kafka:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 64
+  ref: quay.io/strimzi/kafka:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "16.11"
+    name: quay.io/strimzi/kafka
+    newName: redis
+    newTag: 7.3.63-os1
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: registry.example.org:5000/a
+    newName: redis
+    newTag: "9.9"
+  want: quay.io/strimzi/kafka:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 65
+  ref: localhost:5000/x/y:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: localhost:5000/x/y
+    newName: registry.os/x
+  want: registry.os/x:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 66
+  ref: foundationdb/fdb-kubernetes-monitor:0.45.1-kafka-3.9.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: registry.os/postgresql:9.9@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 67
+  ref: quay.io/strimzi/kafka:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: ghcr.io/cloudnative-pg/postgresql
+  want: quay.io/strimzi/kafka:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 68
+  ref: docker.io/library/redis:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - match:
+      tag: "1.0"
+    name: docker.io/library/redis
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63-os1@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 69
+  ref: localhost:5000/x/y:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: localhost:5000/x/y
+    newTag: "9.9"
+  want: localhost:5000/x/y:9.9@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 70
+  ref: redis:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: redis
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: registry.os/x:7.3.63-os1@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 71
+  ref: ghcr.io/cloudnative-pg/postgresql:0.45.1-kafka-3.9.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "16.11"
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: registry.os/x:7.3.63-os1
+- name: generated 72
+  ref: docker.io/library/redis:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/postgresql
+  - name: docker.io/library/redis
+    newTag: "9.9"
+  - match:
+      tag: "1.0"
+    name: docker.io/library/redis
+    newName: registry.os/x
+  want: docker.io/library/redis:9.9
+- name: generated 73
+  ref: ghcr.io/cloudnative-pg/postgresql:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: registry.os/postgresql:9.9
+- name: generated 74
+  ref: ghcr.io/cloudnative-pg/postgresql:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.4.1
+    name: registry.example.org:5000/a
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  - match:
+      tag: "16.11"
+    name: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 75
+  ref: redis@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: registry.example.org:5000/a
+  want: redis@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 76
+  ref: quay.io/strimzi/kafka:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      tag: "16.11"
+    name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+  want: ghcr.io/cloudnative-pg/postgresql:9.9
+- name: generated 77
+  ref: ghcr.io/cloudnative-pg/postgresql:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 78
+  ref: ghcr.io/cloudnative-pg/postgresql:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 79
+  ref: foundationdb/fdb-kubernetes-monitor:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.3.63
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: redis
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/x
+  want: registry.os/x:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 80
+  ref: registry.example.org:5000/a:7.4.1
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: registry.example.org:5000/a
+    newName: registry.os/postgresql
+  want: registry.example.org:5000/a:7.4.1
+- name: generated 81
+  ref: redis:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      tag: "1.0"
+    name: redis
+    newName: registry.os/postgresql
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: registry.os/postgresql
+  want: registry.os/postgresql@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 82
+  ref: docker.io/library/redis:0.45.1-kafka-3.9.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      tag: "1.0"
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - name: docker.io/library/redis
+    newName: registry.os/x
+  want: registry.os/x:0.45.1-kafka-3.9.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 83
+  ref: quay.io/strimzi/kafka:1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: quay.io/strimzi/kafka
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  - name: redis
+    newTag: "9.9"
+  want: quay.io/strimzi/kafka:1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 84
+  ref: localhost:5000/x/y:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: ghcr.io/cloudnative-pg/postgresql
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: localhost:5000/x/y
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: localhost:5000/x/y:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 85
+  ref: localhost:5000/x/y:1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - name: docker.io/library/redis
+    newName: registry.os/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql:1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 86
+  ref: redis:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: redis:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 87
+  ref: quay.io/strimzi/kafka:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: registry.example.org:5000/a
+    newName: redis
+  want: quay.io/strimzi/kafka:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 88
+  ref: redis:7.4.1
+  table:
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: quay.io/strimzi/kafka
+    newName: redis
+    newTag: 7.3.63-os1
+  want: redis:7.4.1
+- name: generated 89
+  ref: localhost:5000/x/y:v1.2.3-rc.1
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: localhost:5000/x/y
+    newName: redis
+    newTag: 7.3.63-os1
+  - name: localhost:5000/x/y
+    newTag: 7.3.63-os1
+  want: localhost:5000/x/y:7.3.63-os1
+- name: generated 90
+  ref: localhost:5000/x/y:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: localhost:5000/x/y
+    newName: registry.os/x
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: registry.os/x:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 91
+  ref: redis:7.3.63
+  table:
+  - name: redis
+    newName: registry.os/x
+  want: registry.os/x:7.3.63
+- name: generated 92
+  ref: registry.example.org:5000/a:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      tag: 7.3.63
+    name: registry.example.org:5000/a
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - match:
+      tag: 7.4.1
+    name: registry.example.org:5000/a
+    newName: redis
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: registry.example.org:5000/a
+  want: registry.example.org:5000/a@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 93
+  ref: localhost:5000/x/y:1.0
+  table:
+  - name: localhost:5000/x/y
+    newName: redis
+    newTag: "9.9"
+  want: redis:9.9
+- name: generated 94
+  ref: registry.example.org:5000/a:0.45.1-kafka-3.9.0
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: registry.example.org:5000/a
+    newName: redis
+  want: registry.example.org:5000/a:0.45.1-kafka-3.9.0
+- name: generated 95
+  ref: redis:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: localhost:5000/x/y
+    newName: registry.os/postgresql
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: redis
+    newTag: "9.9"
+  want: redis:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 96
+  ref: localhost:5000/x/y:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: docker.io/library/redis
+    newName: redis
+    newTag: 7.3.63-os1
+  - name: localhost:5000/x/y
+    newTag: "9.9"
+  want: localhost:5000/x/y:9.9
+- name: generated 97
+  ref: redis:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.4.1
+    name: redis
+  want: redis@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 98
+  ref: localhost:5000/x/y:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newTag: "9.9"
+  want: localhost:5000/x/y:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 99
+  ref: foundationdb/fdb-kubernetes-monitor:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: foundationdb/fdb-kubernetes-monitor:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 100
+  ref: quay.io/strimzi/kafka:1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: quay.io/strimzi/kafka
+    newName: redis
+    newTag: "9.9"
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: registry.example.org:5000/a
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: ghcr.io/cloudnative-pg/postgresql:1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 101
+  ref: foundationdb/fdb-kubernetes-monitor:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "1.0"
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63-os1@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 102
+  ref: foundationdb/fdb-kubernetes-monitor:v1.2.3-rc.1
+  table:
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: redis
+  want: redis@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 103
+  ref: foundationdb/fdb-kubernetes-monitor:0.45.1-kafka-3.9.0
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: registry.example.org:5000/a
+    newTag: 7.3.63-os1
+  want: foundationdb/fdb-kubernetes-monitor:0.45.1-kafka-3.9.0
+- name: generated 104
+  ref: foundationdb/fdb-kubernetes-monitor
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql
+- name: generated 105
+  ref: localhost:5000/x/y:1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      tag: "1.0"
+    name: localhost:5000/x/y
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  - match:
+      tag: 7.4.1
+    name: localhost:5000/x/y
+    newName: registry.os/x
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: registry.os/x:7.3.63-os1
+- name: generated 106
+  ref: docker.io/library/redis:1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: docker.io/library/redis:1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 107
+  ref: redis:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: redis
+    newTag: "9.9"
+  want: redis:9.9
+- name: generated 108
+  ref: foundationdb/fdb-kubernetes-monitor:7.3.63
+  table:
+  - name: redis
+    newName: registry.os/postgresql
+  want: foundationdb/fdb-kubernetes-monitor:7.3.63
+- name: generated 109
+  ref: foundationdb/fdb-kubernetes-monitor:0.45.1-kafka-3.9.0
+  table:
+  - name: docker.io/library/redis
+    newName: redis
+  - match:
+      tag: "16.11"
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: redis
+    newTag: "9.9"
+  want: foundationdb/fdb-kubernetes-monitor:0.45.1-kafka-3.9.0
+- name: generated 110
+  ref: foundationdb/fdb-kubernetes-monitor:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: docker.io/library/redis
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: foundationdb/fdb-kubernetes-monitor:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 111
+  ref: localhost:5000/x/y:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      tag: "16.11"
+    name: localhost:5000/x/y
+    newTag: "9.9"
+  want: localhost:5000/x/y:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 112
+  ref: docker.io/library/redis:7.4.1
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: docker.io/library/redis:7.4.1
+- name: generated 113
+  ref: redis:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      tag: 7.3.63
+    name: redis
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: registry.os/postgresql:9.9
+- name: generated 114
+  ref: redis:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: redis
+    newName: registry.os/x
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+    newName: registry.os/postgresql
+  want: registry.os/x:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 115
+  ref: quay.io/strimzi/kafka:1.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+  want: quay.io/strimzi/kafka@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 116
+  ref: registry.example.org:5000/a:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: registry.example.org:5000/a
+    newName: registry.os/postgresql
+  want: registry.os/postgresql:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 117
+  ref: foundationdb/fdb-kubernetes-monitor:0.45.1-kafka-3.9.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 0.45.1-kafka-3.9.0
+    name: registry.example.org:5000/a
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - match:
+      tag: "1.0"
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: foundationdb/fdb-kubernetes-monitor:0.45.1-kafka-3.9.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 118
+  ref: ghcr.io/cloudnative-pg/postgresql
+  table:
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+    newTag: "9.9"
+  want: registry.os/x:9.9
+- name: generated 119
+  ref: ghcr.io/cloudnative-pg/postgresql:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: ghcr.io/cloudnative-pg/postgresql
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.4.1
+    name: redis
+    newName: registry.os/x
+  want: ghcr.io/cloudnative-pg/postgresql@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 120
+  ref: foundationdb/fdb-kubernetes-monitor:0.45.1-kafka-3.9.0
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - match:
+      tag: "16.11"
+    name: quay.io/strimzi/kafka
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql:9.9
+- name: generated 121
+  ref: foundationdb/fdb-kubernetes-monitor:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newTag: "9.9"
+  - name: redis
+    newName: redis
+  want: foundationdb/fdb-kubernetes-monitor:9.9
+- name: generated 122
+  ref: docker.io/library/redis:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      tag: "1.0"
+    name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: docker.io/library/redis:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 123
+  ref: foundationdb/fdb-kubernetes-monitor:16.11
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/x
+    newTag: "9.9"
+  want: registry.os/x:9.9
+- name: generated 124
+  ref: foundationdb/fdb-kubernetes-monitor:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/x
+  want: registry.os/x:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 125
+  ref: foundationdb/fdb-kubernetes-monitor:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "1.0"
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: ghcr.io/cloudnative-pg/postgresql:9.9
+- name: generated 126
+  ref: docker.io/library/redis:16.11
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: docker.io/library/redis
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  - name: docker.io/library/redis
+    newName: registry.os/x
+  - name: redis
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: registry.os/x:16.11
+- name: generated 127
+  ref: docker.io/library/redis:v1.2.3-rc.1
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63-os1@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 128
+  ref: quay.io/strimzi/kafka:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: quay.io/strimzi/kafka:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 129
+  ref: registry.example.org:5000/a@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: foundationdb/fdb-kubernetes-monitor
+  want: registry.example.org:5000/a@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 130
+  ref: ghcr.io/cloudnative-pg/postgresql:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+  want: ghcr.io/cloudnative-pg/postgresql:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 131
+  ref: registry.example.org:5000/a:v1.2.3-rc.1
+  table:
+  - match:
+      tag: 7.3.63
+    name: registry.example.org:5000/a
+    newName: registry.os/x
+  want: registry.example.org:5000/a:v1.2.3-rc.1
+- name: generated 132
+  ref: registry.example.org:5000/a:v1.2.3-rc.1
+  table:
+  - match:
+      tag: "16.11"
+    name: docker.io/library/redis
+    newName: redis
+  - name: docker.io/library/redis
+    newName: registry.os/x
+  want: registry.example.org:5000/a:v1.2.3-rc.1
+- name: generated 133
+  ref: quay.io/strimzi/kafka:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - match:
+      tag: 7.4.1
+    name: quay.io/strimzi/kafka
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63-os1
+- name: generated 134
+  ref: registry.example.org:5000/a:16.11
+  table:
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: registry.example.org:5000/a
+    newName: registry.os/postgresql
+  want: registry.example.org:5000/a:16.11
+- name: generated 135
+  ref: quay.io/strimzi/kafka:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.3.63
+    name: quay.io/strimzi/kafka
+    newTag: 7.3.63-os1
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: quay.io/strimzi/kafka
+    newName: redis
+  want: quay.io/strimzi/kafka:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 136
+  ref: localhost:5000/x/y@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: localhost:5000/x/y
+    newName: registry.os/postgresql
+  - name: redis
+    newName: redis
+  want: registry.os/postgresql@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 137
+  ref: foundationdb/fdb-kubernetes-monitor:0.45.1-kafka-3.9.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: foundationdb/fdb-kubernetes-monitor
+  - name: redis
+    newName: registry.os/postgresql
+  want: foundationdb/fdb-kubernetes-monitor@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 138
+  ref: localhost:5000/x/y:0.45.1-kafka-3.9.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: localhost:5000/x/y
+    newName: redis
+  want: redis:0.45.1-kafka-3.9.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 139
+  ref: localhost:5000/x/y:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: localhost:5000/x/y
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: registry.os/postgresql:7.3.63-os1
+- name: generated 140
+  ref: registry.example.org:5000/a:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      tag: "16.11"
+    name: registry.example.org:5000/a
+    newName: registry.os/x
+  want: registry.example.org:5000/a:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 141
+  ref: registry.example.org:5000/a:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: registry.example.org:5000/a
+    newName: registry.os/x
+    newTag: "9.9"
+  - match:
+      tag: "16.11"
+    name: registry.example.org:5000/a
+    newName: redis
+  want: registry.os/x:9.9
+- name: generated 142
+  ref: quay.io/strimzi/kafka:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: quay.io/strimzi/kafka
+    newName: redis
+    newTag: 7.3.63-os1
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: quay.io/strimzi/kafka
+    newName: registry.os/x
+    newTag: "9.9"
+  want: redis:7.3.63-os1
+- name: generated 143
+  ref: docker.io/library/redis:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: docker.io/library/redis
+    newName: registry.os/x
+  - name: docker.io/library/redis
+    newName: registry.os/x
+  want: registry.os/x:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 144
+  ref: localhost:5000/x/y:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      tag: "16.11"
+    name: docker.io/library/redis
+    newName: redis
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: v1.2.3-rc.1
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: localhost:5000/x/y
+    newTag: 7.3.63-os1
+  want: localhost:5000/x/y:7.3.63-os1@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 145
+  ref: docker.io/library/redis:0.45.1-kafka-3.9.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  - name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql:0.45.1-kafka-3.9.0
+- name: generated 146
+  ref: ghcr.io/cloudnative-pg/postgresql:7.4.1
+  table:
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: ghcr.io/cloudnative-pg/postgresql:9.9
+- name: generated 147
+  ref: ghcr.io/cloudnative-pg/postgresql@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      tag: "1.0"
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: redis
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.3.63
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - name: quay.io/strimzi/kafka
+    newName: redis
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 148
+  ref: registry.example.org:5000/a:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: registry.example.org:5000/a
+    newTag: "9.9"
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: registry.example.org:5000/a
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: registry.example.org:5000/a:9.9@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 149
+  ref: ghcr.io/cloudnative-pg/postgresql:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.3.63
+    name: quay.io/strimzi/kafka
+    newName: registry.os/x
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 150
+  ref: foundationdb/fdb-kubernetes-monitor:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/postgresql
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: registry.os/postgresql:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 151
+  ref: redis:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: redis
+    newName: registry.os/x
+  - match:
+      tag: v1.2.3-rc.1
+    name: redis
+    newName: registry.os/x
+  want: redis:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 152
+  ref: quay.io/strimzi/kafka:16.11
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  - name: quay.io/strimzi/kafka
+    newName: registry.os/x
+    newTag: "9.9"
+  want: registry.os/x:9.9
+- name: generated 153
+  ref: localhost:5000/x/y@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: localhost:5000/x/y@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 154
+  ref: foundationdb/fdb-kubernetes-monitor:7.4.1
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: quay.io/strimzi/kafka
+    newName: registry.os/postgresql
+  want: foundationdb/fdb-kubernetes-monitor:7.4.1
+- name: generated 155
+  ref: ghcr.io/cloudnative-pg/postgresql@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  - name: registry.example.org:5000/a
+    newName: redis
+    newTag: 7.3.63-os1
+  want: registry.os/postgresql:7.3.63-os1
+- name: generated 156
+  ref: localhost:5000/x/y:v1.2.3-rc.1
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: localhost:5000/x/y
+    newName: registry.os/postgresql
+  want: localhost:5000/x/y:v1.2.3-rc.1
+- name: generated 157
+  ref: localhost:5000/x/y:v1.2.3-rc.1
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: localhost:5000/x/y
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: localhost:5000/x/y:v1.2.3-rc.1
+- name: generated 158
+  ref: redis:v1.2.3-rc.1
+  table:
+  - match:
+      tag: "16.11"
+    name: redis
+    newName: redis
+  want: redis:v1.2.3-rc.1
+- name: generated 159
+  ref: registry.example.org:5000/a:0.45.1-kafka-3.9.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      tag: "16.11"
+    name: registry.example.org:5000/a
+    newName: redis
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: registry.example.org:5000/a
+    newName: registry.os/postgresql
+  want: registry.os/postgresql@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 160
+  ref: redis:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.3.63
+    name: redis
+    newTag: "9.9"
+  - name: redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - match:
+      tag: "1.0"
+    name: redis
+    newName: redis
+    newTag: "9.9"
+  want: ghcr.io/cloudnative-pg/postgresql:9.9
+- name: generated 161
+  ref: redis:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: localhost:5000/x/y
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: registry.example.org:5000/a
+    newName: registry.os/x
+    newTag: "9.9"
+  want: redis:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 162
+  ref: registry.example.org:5000/a:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: docker.io/library/redis
+    newName: registry.os/postgresql
+  - name: registry.example.org:5000/a
+    newName: registry.os/x
+  want: registry.os/x:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 163
+  ref: redis:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: redis
+    newTag: 7.3.63-os1
+  want: redis:7.3.63-os1
+- name: generated 164
+  ref: ghcr.io/cloudnative-pg/postgresql:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: redis
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: redis@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 165
+  ref: docker.io/library/redis:0.45.1-kafka-3.9.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+    newName: registry.os/postgresql
+  want: docker.io/library/redis:0.45.1-kafka-3.9.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 166
+  ref: localhost:5000/x/y:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.3.63
+    name: quay.io/strimzi/kafka
+    newName: redis
+    newTag: 7.3.63-os1
+  want: localhost:5000/x/y:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 167
+  ref: docker.io/library/redis:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: docker.io/library/redis
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 0.45.1-kafka-3.9.0
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: docker.io/library/redis:9.9
+- name: generated 168
+  ref: foundationdb/fdb-kubernetes-monitor:16.11
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 0.45.1-kafka-3.9.0
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/x
+  want: registry.os/x:16.11
+- name: generated 169
+  ref: quay.io/strimzi/kafka@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: quay.io/strimzi/kafka
+    newName: registry.os/postgresql
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: redis
+  want: registry.os/postgresql@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 170
+  ref: localhost:5000/x/y:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "1.0"
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.4.1
+    name: localhost:5000/x/y
+    newName: registry.os/x
+  want: localhost:5000/x/y:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 171
+  ref: registry.example.org:5000/a@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: registry.example.org:5000/a
+    newName: registry.os/x
+    newTag: "9.9"
+  want: registry.os/x:9.9@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 172
+  ref: localhost:5000/x/y:7.3.63
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - match:
+      tag: 7.3.63
+    name: localhost:5000/x/y
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: registry.os/x:7.3.63-os1
+- name: generated 173
+  ref: localhost:5000/x/y:1.0
+  table:
+  - name: localhost:5000/x/y
+    newName: redis
+    newTag: "9.9"
+  - match:
+      tag: "16.11"
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: redis:9.9
+- name: generated 174
+  ref: localhost:5000/x/y@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "16.11"
+    name: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: localhost:5000/x/y@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 175
+  ref: ghcr.io/cloudnative-pg/postgresql@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: quay.io/strimzi/kafka
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: v1.2.3-rc.1
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: redis
+    newTag: "9.9"
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 176
+  ref: ghcr.io/cloudnative-pg/postgresql:0.45.1-kafka-3.9.0
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql:0.45.1-kafka-3.9.0
+- name: generated 177
+  ref: ghcr.io/cloudnative-pg/postgresql:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "16.11"
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 178
+  ref: redis
+  table:
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: redis
+    newName: registry.os/postgresql
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.3.63
+    name: redis
+    newName: redis
+  want: redis
+- name: generated 179
+  ref: redis:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.4.1
+    name: registry.example.org:5000/a
+    newTag: 7.3.63-os1
+  want: registry.os/postgresql:7.3.63-os1@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 180
+  ref: ghcr.io/cloudnative-pg/postgresql:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.3.63
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 181
+  ref: quay.io/strimzi/kafka:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: quay.io/strimzi/kafka
+    newName: registry.os/x
+  want: ghcr.io/cloudnative-pg/postgresql:9.9
+- name: generated 182
+  ref: registry.example.org:5000/a@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: quay.io/strimzi/kafka
+    newName: redis
+  - name: redis
+    newName: registry.os/x
+  want: registry.example.org:5000/a@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 183
+  ref: quay.io/strimzi/kafka
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+    newName: redis
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: v1.2.3-rc.1
+    name: quay.io/strimzi/kafka
+    newName: registry.os/x
+  want: redis@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 184
+  ref: registry.example.org:5000/a:0.45.1-kafka-3.9.0
+  table:
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: registry.example.org:5000/a
+    newName: registry.os/x
+  want: registry.os/x:0.45.1-kafka-3.9.0
+- name: generated 185
+  ref: docker.io/library/redis:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.3.63
+    name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - match:
+      tag: v1.2.3-rc.1
+    name: registry.example.org:5000/a
+    newName: registry.os/x
+    newTag: "9.9"
+  - name: docker.io/library/redis
+    newName: registry.os/postgresql
+  want: registry.os/postgresql:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 186
+  ref: redis:0.45.1-kafka-3.9.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: localhost:5000/x/y
+    newName: registry.os/x
+    newTag: "9.9"
+  - name: redis
+    newName: redis
+  want: redis:0.45.1-kafka-3.9.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 187
+  ref: ghcr.io/cloudnative-pg/postgresql:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: redis
+    newTag: 7.3.63-os1
+  - name: foundationdb/fdb-kubernetes-monitor
+    newTag: "9.9"
+  want: redis:7.3.63-os1@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 188
+  ref: quay.io/strimzi/kafka:v1.2.3-rc.1
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: registry.example.org:5000/a
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: quay.io/strimzi/kafka:v1.2.3-rc.1
+- name: generated 189
+  ref: localhost:5000/x/y:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: localhost:5000/x/y
+    newTag: 7.3.63-os1
+  - match:
+      tag: "1.0"
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: localhost:5000/x/y:7.3.63-os1@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 190
+  ref: quay.io/strimzi/kafka:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: redis
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63-os1@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 191
+  ref: localhost:5000/x/y:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "1.0"
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/x
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: localhost:5000/x/y:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 192
+  ref: foundationdb/fdb-kubernetes-monitor:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.3.63
+    name: foundationdb/fdb-kubernetes-monitor
+  - name: foundationdb/fdb-kubernetes-monitor
+    newTag: 7.3.63-os1
+  want: foundationdb/fdb-kubernetes-monitor:7.3.63-os1
+- name: generated 193
+  ref: localhost:5000/x/y:1.0
+  table:
+  - match:
+      tag: "1.0"
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql:1.0
+- name: generated 194
+  ref: localhost:5000/x/y:v1.2.3-rc.1
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: localhost:5000/x/y
+    newName: redis
+  want: redis@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 195
+  ref: registry.example.org:5000/a:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      tag: v1.2.3-rc.1
+    name: registry.example.org:5000/a
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - name: registry.example.org:5000/a
+    newName: redis
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "1.0"
+    name: registry.example.org:5000/a
+  want: redis:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 196
+  ref: quay.io/strimzi/kafka:0.45.1-kafka-3.9.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/x
+    newTag: "9.9"
+  want: quay.io/strimzi/kafka:0.45.1-kafka-3.9.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 197
+  ref: foundationdb/fdb-kubernetes-monitor:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: foundationdb/fdb-kubernetes-monitor
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63-os1
+- name: generated 198
+  ref: localhost:5000/x/y:7.3.63
+  table:
+  - match:
+      tag: "16.11"
+    name: localhost:5000/x/y
+    newName: redis
+  want: localhost:5000/x/y:7.3.63
+- name: generated 199
+  ref: docker.io/library/redis:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: localhost:5000/x/y
+    newTag: "9.9"
+  - name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: docker.io/library/redis:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 200
+  ref: docker.io/library/redis
+  table:
+  - name: docker.io/library/redis
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "16.11"
+    name: quay.io/strimzi/kafka
+    newName: redis
+    newTag: "9.9"
+  want: registry.os/x:7.3.63-os1
+- name: generated 201
+  ref: registry.example.org:5000/a:16.11
+  table:
+  - name: registry.example.org:5000/a
+    newName: redis
+  - match:
+      tag: "16.11"
+    name: registry.example.org:5000/a
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: redis:16.11
+- name: generated 202
+  ref: registry.example.org:5000/a:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: registry.example.org:5000/a
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 0.45.1-kafka-3.9.0
+    name: registry.example.org:5000/a
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: registry.os/x:7.3.63-os1@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 203
+  ref: foundationdb/fdb-kubernetes-monitor@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "16.11"
+    name: docker.io/library/redis
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: foundationdb/fdb-kubernetes-monitor
+  want: foundationdb/fdb-kubernetes-monitor@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 204
+  ref: quay.io/strimzi/kafka:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      tag: 7.4.1
+    name: quay.io/strimzi/kafka
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: quay.io/strimzi/kafka:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 205
+  ref: redis:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: redis
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: redis:9.9@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 206
+  ref: docker.io/library/redis:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - match:
+      tag: "1.0"
+    name: redis
+    newName: redis
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63-os1
+- name: generated 207
+  ref: quay.io/strimzi/kafka:7.3.63
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: quay.io/strimzi/kafka
+    newName: redis
+    newTag: 7.3.63-os1
+  - name: quay.io/strimzi/kafka
+    newName: redis
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: redis:7.3.63
+- name: generated 208
+  ref: ghcr.io/cloudnative-pg/postgresql
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: registry.os/x:7.3.63-os1@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 209
+  ref: quay.io/strimzi/kafka:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+    newName: redis
+  - match:
+      tag: "1.0"
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+  want: redis@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 210
+  ref: quay.io/strimzi/kafka:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      tag: v1.2.3-rc.1
+    name: registry.example.org:5000/a
+    newName: registry.os/x
+  - name: quay.io/strimzi/kafka
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: registry.os/postgresql:9.9
+- name: generated 211
+  ref: registry.example.org:5000/a:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: localhost:5000/x/y
+    newName: redis
+    newTag: "9.9"
+  - match:
+      tag: "1.0"
+    name: registry.example.org:5000/a
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: registry.example.org:5000/a:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 212
+  ref: quay.io/strimzi/kafka:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: quay.io/strimzi/kafka
+    newName: registry.os/postgresql
+  want: registry.os/postgresql:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 213
+  ref: redis:1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: quay.io/strimzi/kafka
+    newTag: "9.9"
+  want: redis:1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 214
+  ref: ghcr.io/cloudnative-pg/postgresql:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+  want: registry.os/x:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 215
+  ref: foundationdb/fdb-kubernetes-monitor:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: registry.example.org:5000/a
+    newName: registry.os/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 216
+  ref: ghcr.io/cloudnative-pg/postgresql:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: quay.io/strimzi/kafka
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 217
+  ref: registry.example.org:5000/a:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: registry.example.org:5000/a
+    newTag: "9.9"
+  want: registry.example.org:5000/a:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 218
+  ref: redis:0.45.1-kafka-3.9.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      tag: 7.4.1
+    name: redis
+    newName: registry.os/postgresql
+  want: redis:0.45.1-kafka-3.9.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 219
+  ref: localhost:5000/x/y:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: localhost:5000/x/y
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "1.0"
+    name: localhost:5000/x/y
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  - match:
+      tag: 7.4.1
+    name: localhost:5000/x/y
+    newName: registry.os/x
+  want: registry.os/postgresql:7.3.63-os1
+- name: generated 220
+  ref: localhost:5000/x/y:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 0.45.1-kafka-3.9.0
+    name: localhost:5000/x/y
+    newName: registry.os/postgresql
+  - name: localhost:5000/x/y
+    newName: redis
+  want: redis:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 221
+  ref: quay.io/strimzi/kafka:0.45.1-kafka-3.9.0
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: quay.io/strimzi/kafka
+    newName: registry.os/x
+  - name: quay.io/strimzi/kafka
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: registry.os/x:7.3.63-os1
+- name: generated 222
+  ref: ghcr.io/cloudnative-pg/postgresql:0.45.1-kafka-3.9.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: v1.2.3-rc.1
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql:0.45.1-kafka-3.9.0
+- name: generated 223
+  ref: quay.io/strimzi/kafka:7.4.1
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: redis
+    newTag: "9.9"
+  want: ghcr.io/cloudnative-pg/postgresql:9.9@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 224
+  ref: quay.io/strimzi/kafka:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: quay.io/strimzi/kafka
+    newName: registry.os/x
+  - name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63-os1
+- name: generated 225
+  ref: foundationdb/fdb-kubernetes-monitor:0.45.1-kafka-3.9.0
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: redis
+    newTag: "9.9"
+  want: redis:9.9
+- name: generated 226
+  ref: ghcr.io/cloudnative-pg/postgresql:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: ghcr.io/cloudnative-pg/postgresql:9.9@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 227
+  ref: docker.io/library/redis:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "1.0"
+    name: docker.io/library/redis
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: docker.io/library/redis:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 228
+  ref: ghcr.io/cloudnative-pg/postgresql:7.4.1
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: docker.io/library/redis
+    newName: registry.os/x
+    newTag: "9.9"
+  want: ghcr.io/cloudnative-pg/postgresql:7.4.1
+- name: generated 229
+  ref: quay.io/strimzi/kafka:7.3.63
+  table:
+  - match:
+      tag: "1.0"
+    name: quay.io/strimzi/kafka
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: quay.io/strimzi/kafka:7.3.63
+- name: generated 230
+  ref: registry.example.org:5000/a:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: registry.example.org:5000/a
+    newName: redis
+  want: redis:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 231
+  ref: foundationdb/fdb-kubernetes-monitor:7.4.1
+  table:
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/x
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: foundationdb/fdb-kubernetes-monitor:7.4.1
+- name: generated 232
+  ref: quay.io/strimzi/kafka:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+  want: quay.io/strimzi/kafka@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 233
+  ref: quay.io/strimzi/kafka:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: localhost:5000/x/y
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: quay.io/strimzi/kafka:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 234
+  ref: registry.example.org:5000/a:7.3.63
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 0.45.1-kafka-3.9.0
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - match:
+      tag: "16.11"
+    name: registry.example.org:5000/a
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: registry.example.org:5000/a:7.3.63
+- name: generated 235
+  ref: redis:0.45.1-kafka-3.9.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.3.63
+    name: redis
+    newName: redis
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 0.45.1-kafka-3.9.0
+    name: redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63-os1@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 236
+  ref: quay.io/strimzi/kafka:16.11
+  table:
+  - name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63-os1
+- name: generated 237
+  ref: quay.io/strimzi/kafka:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/postgresql
+  - match:
+      tag: 7.3.63
+    name: quay.io/strimzi/kafka
+    newName: registry.os/x
+    newTag: "9.9"
+  want: quay.io/strimzi/kafka:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 238
+  ref: docker.io/library/redis:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+    newName: redis
+  want: docker.io/library/redis:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 239
+  ref: foundationdb/fdb-kubernetes-monitor:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: redis
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: redis:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 240
+  ref: quay.io/strimzi/kafka:1.0
+  table:
+  - name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql:1.0
+- name: generated 241
+  ref: registry.example.org:5000/a:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: redis
+    newTag: 7.3.63-os1
+  want: registry.example.org:5000/a:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 242
+  ref: foundationdb/fdb-kubernetes-monitor:1.0
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: redis
+  - name: redis
+    newName: registry.os/x
+  want: foundationdb/fdb-kubernetes-monitor:1.0
+- name: generated 243
+  ref: docker.io/library/redis:1.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: docker.io/library/redis
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: docker.io/library/redis
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: registry.os/x:7.3.63-os1@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 244
+  ref: redis:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: redis
+    newTag: "9.9"
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: redis:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 245
+  ref: quay.io/strimzi/kafka:16.11
+  table:
+  - match:
+      tag: 7.4.1
+    name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - name: quay.io/strimzi/kafka
+    newName: redis
+    newTag: "9.9"
+  want: redis:9.9
+- name: generated 246
+  ref: ghcr.io/cloudnative-pg/postgresql:1.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - match:
+      tag: 7.3.63
+    name: registry.example.org:5000/a
+    newName: redis
+  want: ghcr.io/cloudnative-pg/postgresql:9.9@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 247
+  ref: redis:16.11
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: registry.example.org:5000/a
+    newName: registry.os/x
+    newTag: "9.9"
+  - name: docker.io/library/redis
+    newName: registry.os/x
+    newTag: "9.9"
+  want: redis:16.11
+- name: generated 248
+  ref: redis:1.0
+  table:
+  - name: registry.example.org:5000/a
+    newName: redis
+  - name: redis
+    newName: redis
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: redis
+    newName: registry.os/postgresql
+  want: redis:1.0
+- name: generated 249
+  ref: docker.io/library/redis:1.0
+  table:
+  - match:
+      tag: v1.2.3-rc.1
+    name: docker.io/library/redis
+    newName: redis
+    newTag: "9.9"
+  - name: docker.io/library/redis
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: registry.os/x:7.3.63-os1
+- name: generated 250
+  ref: quay.io/strimzi/kafka:v1.2.3-rc.1
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: quay.io/strimzi/kafka:v1.2.3-rc.1
+- name: generated 251
+  ref: redis:1.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: registry.os/x
+    newTag: "9.9"
+  want: registry.os/x:9.9@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 252
+  ref: registry.example.org:5000/a:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.4.1
+    name: registry.example.org:5000/a
+    newName: registry.os/postgresql
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: quay.io/strimzi/kafka
+    newName: registry.os/x
+  want: registry.example.org:5000/a:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 253
+  ref: foundationdb/fdb-kubernetes-monitor:7.3.63
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: redis
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "1.0"
+    name: foundationdb/fdb-kubernetes-monitor
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 254
+  ref: redis:7.4.1
+  table:
+  - name: quay.io/strimzi/kafka
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: redis:7.4.1
+- name: generated 255
+  ref: quay.io/strimzi/kafka:v1.2.3-rc.1
+  table:
+  - match:
+      tag: 7.4.1
+    name: quay.io/strimzi/kafka
+    newName: redis
+  want: quay.io/strimzi/kafka:v1.2.3-rc.1
+- name: generated 256
+  ref: docker.io/library/redis:0.45.1-kafka-3.9.0
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: docker.io/library/redis
+    newName: redis
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: docker.io/library/redis
+    newName: redis
+  want: redis@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 257
+  ref: ghcr.io/cloudnative-pg/postgresql:7.3.63
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 258
+  ref: redis:7.4.1
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - match:
+      tag: "1.0"
+    name: redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63-os1@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 259
+  ref: ghcr.io/cloudnative-pg/postgresql:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: registry.os/x:7.3.63-os1
+- name: generated 260
+  ref: registry.example.org:5000/a@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: registry.example.org:5000/a
+    newTag: "9.9"
+  want: registry.example.org:5000/a:9.9
+- name: generated 261
+  ref: localhost:5000/x/y:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - name: localhost:5000/x/y
+    newName: registry.os/postgresql
+  want: registry.os/postgresql:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 262
+  ref: ghcr.io/cloudnative-pg/postgresql:16.11
+  table:
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63-os1
+- name: generated 263
+  ref: redis:7.4.1
+  table:
+  - match:
+      tag: v1.2.3-rc.1
+    name: docker.io/library/redis
+    newName: redis
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: registry.os/x
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: localhost:5000/x/y
+    newTag: 7.3.63-os1
+  want: registry.os/x@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 264
+  ref: foundationdb/fdb-kubernetes-monitor:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: foundationdb/fdb-kubernetes-monitor:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 265
+  ref: ghcr.io/cloudnative-pg/postgresql:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      tag: v1.2.3-rc.1
+    name: localhost:5000/x/y
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 266
+  ref: foundationdb/fdb-kubernetes-monitor:1.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/x
+    newTag: "9.9"
+  want: foundationdb/fdb-kubernetes-monitor:1.0
+- name: generated 267
+  ref: localhost:5000/x/y:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      tag: "1.0"
+    name: localhost:5000/x/y
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: localhost:5000/x/y:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 268
+  ref: quay.io/strimzi/kafka:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+    newName: registry.os/x
+  want: registry.os/x@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 269
+  ref: registry.example.org:5000/a:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: registry.example.org:5000/a
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - match:
+      tag: 7.3.63
+    name: registry.example.org:5000/a
+    newName: redis
+  want: ghcr.io/cloudnative-pg/postgresql:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 270
+  ref: ghcr.io/cloudnative-pg/postgresql:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: redis
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.4.1
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: redis:7.3.63-os1
+- name: generated 271
+  ref: localhost:5000/x/y:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "1.0"
+    name: localhost:5000/x/y
+    newName: registry.os/x
+    newTag: "9.9"
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: localhost:5000/x/y:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 272
+  ref: foundationdb/fdb-kubernetes-monitor@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: foundationdb/fdb-kubernetes-monitor@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 273
+  ref: foundationdb/fdb-kubernetes-monitor:0.45.1-kafka-3.9.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: v1.2.3-rc.1
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/x
+  want: foundationdb/fdb-kubernetes-monitor:0.45.1-kafka-3.9.0
+- name: generated 274
+  ref: localhost:5000/x/y:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: localhost:5000/x/y
+    newName: redis
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.4.1
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: redis:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 275
+  ref: localhost:5000/x/y:1.0
+  table:
+  - name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - match:
+      tag: 7.4.1
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: localhost:5000/x/y:1.0
+- name: generated 276
+  ref: docker.io/library/redis:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.3.63
+    name: docker.io/library/redis
+    newName: registry.os/postgresql
+  want: docker.io/library/redis:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 277
+  ref: localhost:5000/x/y:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: localhost:5000/x/y:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 278
+  ref: registry.example.org:5000/a:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "1.0"
+    name: docker.io/library/redis
+  want: registry.example.org:5000/a:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 279
+  ref: redis:v1.2.3-rc.1
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: redis
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: redis:v1.2.3-rc.1
+- name: generated 280
+  ref: redis@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+  want: redis@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 281
+  ref: redis:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.4.1
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.3.63
+    name: redis
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: redis:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 282
+  ref: quay.io/strimzi/kafka:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 283
+  ref: redis:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: redis
+    newTag: "9.9"
+  want: redis:9.9
+- name: generated 284
+  ref: ghcr.io/cloudnative-pg/postgresql:7.4.1
+  table:
+  - match:
+      tag: 7.3.63
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql:7.4.1
+- name: generated 285
+  ref: foundationdb/fdb-kubernetes-monitor:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: foundationdb/fdb-kubernetes-monitor:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 286
+  ref: ghcr.io/cloudnative-pg/postgresql:1.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+    newName: redis
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: registry.os/postgresql:7.3.63-os1
+- name: generated 287
+  ref: registry.example.org:5000/a@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      tag: 7.3.63
+    name: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: registry.example.org:5000/a@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 288
+  ref: localhost:5000/x/y:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: localhost:5000/x/y
+    newTag: "9.9"
+  want: localhost:5000/x/y:9.9
+- name: generated 289
+  ref: redis:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.4.1
+    name: redis
+  want: redis@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 290
+  ref: ghcr.io/cloudnative-pg/postgresql:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: redis
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 291
+  ref: foundationdb/fdb-kubernetes-monitor:7.3.63
+  table:
+  - name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: foundationdb/fdb-kubernetes-monitor:7.3.63
+- name: generated 292
+  ref: docker.io/library/redis@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.3.63
+    name: docker.io/library/redis
+    newName: registry.os/x
+    newTag: "9.9"
+  want: docker.io/library/redis@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 293
+  ref: docker.io/library/redis:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: docker.io/library/redis
+    newTag: "9.9"
+  want: docker.io/library/redis:9.9
+- name: generated 294
+  ref: foundationdb/fdb-kubernetes-monitor:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      tag: "1.0"
+    name: registry.example.org:5000/a
+    newName: registry.os/x
+  want: foundationdb/fdb-kubernetes-monitor:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 295
+  ref: localhost:5000/x/y:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - name: docker.io/library/redis
+    newName: redis
+    newTag: 7.3.63-os1
+  - match:
+      tag: "16.11"
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: ghcr.io/cloudnative-pg/postgresql@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 296
+  ref: docker.io/library/redis:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: docker.io/library/redis
+    newName: registry.os/x
+    newTag: "9.9"
+  - match:
+      tag: v1.2.3-rc.1
+    name: docker.io/library/redis
+    newName: registry.os/x
+    newTag: "9.9"
+  want: docker.io/library/redis:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 297
+  ref: ghcr.io/cloudnative-pg/postgresql:7.4.1
+  table:
+  - match:
+      tag: "1.0"
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+  - name: redis
+    newName: registry.os/x
+  want: ghcr.io/cloudnative-pg/postgresql:7.4.1
+- name: generated 298
+  ref: registry.example.org:5000/a
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: registry.example.org:5000/a
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - name: quay.io/strimzi/kafka
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 299
+  ref: redis
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: redis
+    newName: redis
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: registry.os/postgresql
+  want: registry.os/postgresql@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 300
+  ref: docker.io/library/redis:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "1.0"
+    name: docker.io/library/redis
+    newName: registry.os/postgresql
+  want: registry.os/postgresql@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 301
+  ref: localhost:5000/x/y:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "1.0"
+    name: localhost:5000/x/y
+    newName: registry.os/x
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63-os1@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 302
+  ref: localhost:5000/x/y:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      tag: "16.11"
+    name: localhost:5000/x/y
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: registry.os/x:7.3.63-os1
+- name: generated 303
+  ref: foundationdb/fdb-kubernetes-monitor:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: foundationdb/fdb-kubernetes-monitor
+  want: foundationdb/fdb-kubernetes-monitor@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 304
+  ref: ghcr.io/cloudnative-pg/postgresql@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: redis
+  - name: docker.io/library/redis
+    newTag: "9.9"
+  want: redis@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 305
+  ref: ghcr.io/cloudnative-pg/postgresql@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.4.1
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+    newTag: "9.9"
+  want: ghcr.io/cloudnative-pg/postgresql@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 306
+  ref: localhost:5000/x/y:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+    newTag: "9.9"
+  want: ghcr.io/cloudnative-pg/postgresql:9.9
+- name: generated 307
+  ref: localhost:5000/x/y
+  table:
+  - name: docker.io/library/redis
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  - name: localhost:5000/x/y
+    newName: redis
+    newTag: "9.9"
+  want: redis:9.9
+- name: generated 308
+  ref: docker.io/library/redis@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: localhost:5000/x/y
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: docker.io/library/redis@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 309
+  ref: foundationdb/fdb-kubernetes-monitor:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.4.1
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/x
+    newTag: "9.9"
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: redis
+  want: registry.os/x:9.9@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 310
+  ref: localhost:5000/x/y:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: redis
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: docker.io/library/redis
+    newName: registry.os/x
+    newTag: "9.9"
+  - name: localhost:5000/x/y
+    newName: redis
+    newTag: "9.9"
+  want: redis:9.9
+- name: generated 311
+  ref: foundationdb/fdb-kubernetes-monitor@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: ghcr.io/cloudnative-pg/postgresql:9.9@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 312
+  ref: foundationdb/fdb-kubernetes-monitor:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/x
+  want: registry.os/x:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 313
+  ref: redis:7.4.1
+  table:
+  - match:
+      tag: "1.0"
+    name: docker.io/library/redis
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  - match:
+      tag: "1.0"
+    name: redis
+    newName: registry.os/x
+  want: redis:7.4.1
+- name: generated 314
+  ref: quay.io/strimzi/kafka@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: docker.io/library/redis
+    newName: registry.os/postgresql
+  want: quay.io/strimzi/kafka@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 315
+  ref: foundationdb/fdb-kubernetes-monitor:0.45.1-kafka-3.9.0
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: foundationdb/fdb-kubernetes-monitor
+    newTag: 7.3.63-os1
+  want: foundationdb/fdb-kubernetes-monitor:0.45.1-kafka-3.9.0
+- name: generated 316
+  ref: localhost:5000/x/y:1.0
+  table:
+  - name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: localhost:5000/x/y
+    newName: registry.os/x
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63-os1
+- name: generated 317
+  ref: docker.io/library/redis:7.4.1
+  table:
+  - name: docker.io/library/redis
+    newTag: 7.3.63-os1
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: docker.io/library/redis:7.3.63-os1
+- name: generated 318
+  ref: ghcr.io/cloudnative-pg/postgresql
+  table:
+  - match:
+      tag: 7.4.1
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+    newTag: "9.9"
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: redis
+  want: redis
+- name: generated 319
+  ref: docker.io/library/redis:7.3.63
+  table:
+  - name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: docker.io/library/redis:7.3.63
+- name: generated 320
+  ref: quay.io/strimzi/kafka
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: quay.io/strimzi/kafka
+    newName: redis
+  want: quay.io/strimzi/kafka
+- name: generated 321
+  ref: foundationdb/fdb-kubernetes-monitor:1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: registry.os/postgresql:9.9
+- name: generated 322
+  ref: foundationdb/fdb-kubernetes-monitor:1.0
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/x
+  want: registry.os/x:1.0
+- name: generated 323
+  ref: docker.io/library/redis:0.45.1-kafka-3.9.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: docker.io/library/redis
+    newName: registry.os/x
+  want: registry.os/x:0.45.1-kafka-3.9.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 324
+  ref: localhost:5000/x/y:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: localhost:5000/x/y
+    newName: registry.os/x
+    newTag: "9.9"
+  - match:
+      tag: 7.4.1
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63-os1
+- name: generated 325
+  ref: quay.io/strimzi/kafka:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: quay.io/strimzi/kafka:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 326
+  ref: localhost:5000/x/y:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: localhost:5000/x/y
+    newName: registry.os/postgresql
+  - name: localhost:5000/x/y
+    newName: registry.os/postgresql
+  want: registry.os/postgresql:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 327
+  ref: registry.example.org:5000/a:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: registry.example.org:5000/a
+    newTag: 7.3.63-os1
+  want: registry.example.org:5000/a:7.3.63-os1
+- name: generated 328
+  ref: localhost:5000/x/y
+  table:
+  - match:
+      tag: "16.11"
+    name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - match:
+      tag: "1.0"
+    name: localhost:5000/x/y
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: localhost:5000/x/y
+- name: generated 329
+  ref: quay.io/strimzi/kafka@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: registry.example.org:5000/a
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: redis
+    newTag: 7.3.63-os1
+  want: quay.io/strimzi/kafka@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 330
+  ref: quay.io/strimzi/kafka:1.0
+  table:
+  - name: localhost:5000/x/y
+    newTag: "9.9"
+  want: quay.io/strimzi/kafka:1.0
+- name: generated 331
+  ref: quay.io/strimzi/kafka:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newTag: "9.9"
+  - name: quay.io/strimzi/kafka
+    newName: redis
+    newTag: 7.3.63-os1
+  - name: registry.example.org:5000/a
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: redis:7.3.63-os1
+- name: generated 332
+  ref: docker.io/library/redis:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 0.45.1-kafka-3.9.0
+    name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - match:
+      tag: 7.4.1
+    name: docker.io/library/redis
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: docker.io/library/redis
+    newName: redis
+    newTag: "9.9"
+  want: docker.io/library/redis:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 333
+  ref: redis:7.3.63
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "1.0"
+    name: redis
+    newName: registry.os/x
+  - match:
+      tag: "16.11"
+    name: redis
+    newName: registry.os/postgresql
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: redis
+    newTag: 7.3.63-os1
+  want: redis:7.3.63
+- name: generated 334
+  ref: quay.io/strimzi/kafka:1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      tag: "16.11"
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+  want: quay.io/strimzi/kafka:1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 335
+  ref: redis
+  table:
+  - name: redis
+    newName: registry.os/x
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.4.1
+    name: redis
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  want: registry.os/x
+- name: generated 336
+  ref: registry.example.org:5000/a:16.11
+  table:
+  - name: registry.example.org:5000/a
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  - match:
+      tag: v1.2.3-rc.1
+    name: docker.io/library/redis
+    newName: registry.os/x
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: registry.os/postgresql:7.3.63-os1
+- name: generated 337
+  ref: localhost:5000/x/y:1.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: localhost:5000/x/y
+    newName: registry.os/x
+    newTag: "9.9"
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: localhost:5000/x/y
+    newTag: "9.9"
+  want: registry.os/x:9.9
+- name: generated 338
+  ref: docker.io/library/redis:7.4.1
+  table:
+  - name: quay.io/strimzi/kafka
+    newName: redis
+    newTag: "9.9"
+  - name: docker.io/library/redis
+    newName: registry.os/x
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: docker.io/library/redis
+  want: registry.os/x:7.4.1
+- name: generated 339
+  ref: foundationdb/fdb-kubernetes-monitor:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: registry.example.org:5000/a
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - name: foundationdb/fdb-kubernetes-monitor
+    newTag: 7.3.63-os1
+  want: foundationdb/fdb-kubernetes-monitor:7.3.63-os1
+- name: generated 340
+  ref: quay.io/strimzi/kafka:0.45.1-kafka-3.9.0
+  table:
+  - name: redis
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: quay.io/strimzi/kafka:0.45.1-kafka-3.9.0
+- name: generated 341
+  ref: quay.io/strimzi/kafka:0.45.1-kafka-3.9.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: registry.example.org:5000/a
+  want: quay.io/strimzi/kafka:0.45.1-kafka-3.9.0
+- name: generated 342
+  ref: registry.example.org:5000/a:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: registry.example.org:5000/a
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: registry.example.org:5000/a
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  - name: localhost:5000/x/y
+    newName: registry.os/x
+  want: ghcr.io/cloudnative-pg/postgresql@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 343
+  ref: quay.io/strimzi/kafka:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.3.63
+    name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: quay.io/strimzi/kafka:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 344
+  ref: redis:7.3.63
+  table:
+  - name: redis
+    newName: redis
+    newTag: "9.9"
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+  want: redis:9.9
+- name: generated 345
+  ref: redis:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: registry.os/x
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: registry.os/x@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 346
+  ref: quay.io/strimzi/kafka:0.45.1-kafka-3.9.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.3.63
+    name: quay.io/strimzi/kafka
+    newName: registry.os/x
+  want: quay.io/strimzi/kafka:0.45.1-kafka-3.9.0
+- name: generated 347
+  ref: localhost:5000/x/y:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+  want: localhost:5000/x/y:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 348
+  ref: redis:16.11
+  table:
+  - match:
+      tag: "16.11"
+    name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: redis
+    newTag: "9.9"
+  want: redis:9.9@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 349
+  ref: redis:7.3.63@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "16.11"
+    name: redis
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  - name: redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63-os1
+- name: generated 350
+  ref: localhost:5000/x/y:0.45.1-kafka-3.9.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: localhost:5000/x/y
+    newName: registry.os/postgresql
+  want: localhost:5000/x/y:0.45.1-kafka-3.9.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 351
+  ref: redis:7.4.1
+  table:
+  - name: redis
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: registry.os/postgresql:7.3.63-os1
+- name: generated 352
+  ref: redis:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - match:
+      tag: 7.4.1
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - match:
+      tag: 7.3.63
+    name: redis
+    newTag: 7.3.63-os1
+  want: redis:16.11@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 353
+  ref: docker.io/library/redis:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "16.11"
+    name: docker.io/library/redis
+    newName: registry.os/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63-os1
+- name: generated 354
+  ref: registry.example.org:5000/a:1.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.4.1
+    name: registry.example.org:5000/a
+    newName: redis
+    newTag: 7.3.63-os1
+  - match:
+      tag: 7.3.63
+    name: registry.example.org:5000/a
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: registry.example.org:5000/a:1.0
+- name: generated 355
+  ref: foundationdb/fdb-kubernetes-monitor:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - match:
+      tag: "1.0"
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: redis
+  want: ghcr.io/cloudnative-pg/postgresql:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 356
+  ref: quay.io/strimzi/kafka:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - name: quay.io/strimzi/kafka
+    newName: registry.os/x
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 0.45.1-kafka-3.9.0
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: redis
+  want: registry.os/x:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 357
+  ref: quay.io/strimzi/kafka:7.4.1
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+    newName: registry.os/x
+  want: registry.os/x@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 358
+  ref: localhost:5000/x/y:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "16.11"
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - match:
+      tag: 7.4.1
+    name: localhost:5000/x/y
+    newName: redis
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: ghcr.io/cloudnative-pg/postgresql:9.9@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 359
+  ref: docker.io/library/redis:v1.2.3-rc.1
+  table:
+  - match:
+      tag: 7.4.1
+    name: docker.io/library/redis
+    newName: redis
+    newTag: 7.3.63-os1
+  - name: docker.io/library/redis
+    newName: registry.os/x
+  want: registry.os/x:v1.2.3-rc.1
+- name: generated 360
+  ref: foundationdb/fdb-kubernetes-monitor:16.11
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  - match:
+      tag: v1.2.3-rc.1
+    name: quay.io/strimzi/kafka
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: registry.os/postgresql:9.9
+- name: generated 361
+  ref: localhost:5000/x/y
+  table:
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: docker.io/library/redis
+    newName: redis
+  want: localhost:5000/x/y
+- name: generated 362
+  ref: localhost:5000/x/y:16.11
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: localhost:5000/x/y
+    newName: registry.os/x
+  want: localhost:5000/x/y:16.11
+- name: generated 363
+  ref: foundationdb/fdb-kubernetes-monitor:7.4.1
+  table:
+  - match:
+      tag: "16.11"
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - name: redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: foundationdb/fdb-kubernetes-monitor:7.4.1
+- name: generated 364
+  ref: registry.example.org:5000/a:1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "16.11"
+    name: registry.example.org:5000/a
+    newTag: 7.3.63-os1
+  want: registry.example.org:5000/a:1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 365
+  ref: localhost:5000/x/y:v1.2.3-rc.1
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: localhost:5000/x/y
+  want: localhost:5000/x/y@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 366
+  ref: ghcr.io/cloudnative-pg/postgresql:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+    newTag: "9.9"
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+  want: ghcr.io/cloudnative-pg/postgresql:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 367
+  ref: quay.io/strimzi/kafka
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: quay.io/strimzi/kafka
+    newName: registry.os/postgresql
+  - match:
+      tag: "1.0"
+    name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: registry.os/postgresql@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 368
+  ref: localhost:5000/x/y:7.4.1
+  table:
+  - match:
+      tag: 7.3.63
+    name: localhost:5000/x/y
+    newName: registry.os/x
+  - name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql:7.4.1
+- name: generated 369
+  ref: localhost:5000/x/y:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      tag: 7.4.1
+    name: quay.io/strimzi/kafka
+    newName: redis
+    newTag: "9.9"
+  - match:
+      tag: v1.2.3-rc.1
+    name: localhost:5000/x/y
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  want: localhost:5000/x/y:7.4.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 370
+  ref: ghcr.io/cloudnative-pg/postgresql:16.11
+  table:
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+    newTag: 7.3.63-os1
+  - match:
+      digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+  want: registry.os/postgresql:7.3.63-os1
+- name: generated 371
+  ref: foundationdb/fdb-kubernetes-monitor:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: registry.example.org:5000/a
+    newName: registry.os/x
+  - name: docker.io/library/redis
+    newName: redis
+    newTag: "9.9"
+  want: foundationdb/fdb-kubernetes-monitor:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 372
+  ref: quay.io/strimzi/kafka:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: ghcr.io/cloudnative-pg/postgresql:7.3.63-os1
+- name: generated 373
+  ref: quay.io/strimzi/kafka:1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  - name: quay.io/strimzi/kafka
+    newName: redis
+  want: redis:1.0@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 374
+  ref: docker.io/library/redis:7.4.1
+  table:
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  - name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql:7.4.1
+- name: generated 375
+  ref: redis:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "1.0"
+    name: redis
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: redis:v1.2.3-rc.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 376
+  ref: registry.example.org:5000/a:1.0
+  table:
+  - name: registry.example.org:5000/a
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: ghcr.io/cloudnative-pg/postgresql:9.9
+- name: generated 377
+  ref: foundationdb/fdb-kubernetes-monitor:0.45.1-kafka-3.9.0
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newTag: 7.3.63-os1
+  - match:
+      tag: 7.3.63
+    name: registry.example.org:5000/a
+    newName: redis
+  want: foundationdb/fdb-kubernetes-monitor:7.3.63-os1
+- name: generated 378
+  ref: registry.example.org:5000/a:7.4.1
+  table:
+  - match:
+      tag: v1.2.3-rc.1
+    name: localhost:5000/x/y
+    newName: registry.os/postgresql
+  want: registry.example.org:5000/a:7.4.1
+- name: generated 379
+  ref: ghcr.io/cloudnative-pg/postgresql:0.45.1-kafka-3.9.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 0.45.1-kafka-3.9.0
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: redis
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: ghcr.io/cloudnative-pg/postgresql
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: redis@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 380
+  ref: redis:1.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.3.63
+    name: redis
+    newName: registry.os/postgresql
+  - name: redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql:1.0
+- name: generated 381
+  ref: redis:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: ghcr.io/cloudnative-pg/postgresql@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 382
+  ref: docker.io/library/redis:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: docker.io/library/redis
+    newName: registry.os/x
+  - name: quay.io/strimzi/kafka
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: registry.os/x:v1.2.3-rc.1@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 383
+  ref: redis:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: redis
+    newName: registry.os/postgresql
+  want: registry.os/postgresql@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 384
+  ref: redis:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      tag: 7.3.63
+    name: quay.io/strimzi/kafka
+    newName: redis
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 0.45.1-kafka-3.9.0
+    name: redis
+    newName: registry.os/postgresql
+  want: registry.os/postgresql@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 385
+  ref: docker.io/library/redis:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - match:
+      tag: "16.11"
+    name: docker.io/library/redis
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: registry.os/postgresql:9.9
+- name: generated 386
+  ref: foundationdb/fdb-kubernetes-monitor:16.11
+  table:
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/x
+  - name: registry.example.org:5000/a
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: foundationdb/fdb-kubernetes-monitor:16.11
+- name: generated 387
+  ref: redis:0.45.1-kafka-3.9.0
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: redis
+    newName: registry.os/x
+    newTag: "9.9"
+  want: redis:0.45.1-kafka-3.9.0
+- name: generated 388
+  ref: docker.io/library/redis@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: foundationdb/fdb-kubernetes-monitor
+    newTag: 7.3.63-os1
+  - match:
+      tag: v1.2.3-rc.1
+    name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  want: docker.io/library/redis@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 389
+  ref: docker.io/library/redis:0.45.1-kafka-3.9.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: docker.io/library/redis
+    newName: registry.os/x
+  want: registry.os/x@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 390
+  ref: registry.example.org:5000/a:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "16.11"
+    name: registry.example.org:5000/a
+    newName: redis
+  want: redis@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 391
+  ref: registry.example.org:5000/a
+  table:
+  - match:
+      tag: 7.4.1
+    name: registry.example.org:5000/a
+    newTag: "9.9"
+  want: registry.example.org:5000/a
+- name: generated 392
+  ref: redis:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+  want: redis:16.11@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 393
+  ref: ghcr.io/cloudnative-pg/postgresql:7.3.63
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: ghcr.io/cloudnative-pg/postgresql
+    newTag: 7.3.63-os1
+  - name: ghcr.io/cloudnative-pg/postgresql
+    newName: registry.os/x
+  - match:
+      tag: 7.3.63
+    name: redis
+    newName: redis
+    newTag: 7.3.63-os1
+  want: registry.os/x:7.3.63
+- name: generated 394
+  ref: localhost:5000/x/y:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  table:
+  - name: docker.io/library/redis
+    newName: ghcr.io/cloudnative-pg/postgresql
+    newTag: "9.9"
+  want: localhost:5000/x/y:7.4.1@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+- name: generated 395
+  ref: quay.io/strimzi/kafka:16.11
+  table:
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: redis
+    newName: registry.os/postgresql
+    newTag: "9.9"
+  - match:
+      digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    name: quay.io/strimzi/kafka
+    newName: redis
+    newTag: "9.9"
+  want: quay.io/strimzi/kafka:16.11
+- name: generated 396
+  ref: registry.example.org:5000/a
+  table:
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: docker.io/library/redis
+    newName: registry.os/x
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: "16.11"
+    name: registry.example.org:5000/a
+  want: registry.example.org:5000/a
+- name: generated 397
+  ref: localhost:5000/x/y:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - name: localhost:5000/x/y
+    newName: redis
+  want: redis:7.3.63@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+- name: generated 398
+  ref: registry.example.org:5000/a:0.45.1-kafka-3.9.0
+  table:
+  - name: localhost:5000/x/y
+    newName: ghcr.io/cloudnative-pg/postgresql
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    name: registry.example.org:5000/a
+    newName: registry.os/x
+  want: registry.os/x@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+- name: generated 399
+  ref: foundationdb/fdb-kubernetes-monitor@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  table:
+  - match:
+      tag: 0.45.1-kafka-3.9.0
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: redis
+  - digest: sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+    match:
+      tag: 7.4.1
+    name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.os/x
+    newTag: 7.3.63-os1
+  want: foundationdb/fdb-kubernetes-monitor@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb

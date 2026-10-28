@@ -78,6 +78,13 @@ func TestParseRejects(t *testing.T) {
 		"nothing to change": {"- {name: a/b}", "sets none of"},
 		"malformed digest":  {"- {name: a/b, digest: 'sha256:abc'}", "is not sha256"},
 		"duplicate name":    {"- {name: a/b, newName: c/d}\n- {name: a/b, newTag: v2}", "listed twice"},
+		"duplicate match":   {"- {name: a/b, match: {tag: v1}, newName: c/d}\n- {name: a/b, match: {tag: v1}, newTag: v2}", "listed twice"},
+		"match with both":   {"- {name: a/b, match: {tag: v1, digest: '" + digest + "'}, newName: c/d}", "exactly one of tag, digest"},
+		"empty match":       {"- {name: a/b, match: {}, newName: c/d}", "exactly one of tag, digest"},
+		"match bad tag":     {"- {name: a/b, match: {tag: 'v1 x'}, newName: c/d}", "is not an image tag"},
+		"match bad digest":  {"- {name: a/b, match: {digest: 'sha256:abc'}, newName: c/d}", "match.digest"},
+		"unknown in match":  {"- {name: a/b, match: {version: v1}, newName: c/d}", "unknown field"},
+		"not an image name": {"- {name: 'a/(b)', newName: c/d}", "is not an image name"},
 		"not a list":        {"{name: a/b}", "parsing image-overrides"},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -90,9 +97,62 @@ func TestParseRejects(t *testing.T) {
 	}
 }
 
+// Flux receives the version selector folded into the name, and the same name
+// may appear once per version.
+func TestParseMatch(t *testing.T) {
+	values := `
+_cluster:
+  image-overrides:
+  - name: foundationdb/fdb-kubernetes-monitor
+    match: {tag: 7.3.63}
+    newTag: 7.3.63-os1
+  - name: foundationdb/fdb-kubernetes-monitor
+    match: {digest: ` + digest + `}
+    newName: registry.example.org/os/fdb-kubernetes-monitor
+  - name: foundationdb/fdb-kubernetes-monitor
+    newName: registry.example.org/os/fdb-kubernetes-monitor
+`
+	got, err := Parse([]byte(values))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	want := []kustomize.Image{
+		{Name: "foundationdb/fdb-kubernetes-monitor:7.3.63", NewTag: "7.3.63-os1"},
+		{Name: "foundationdb/fdb-kubernetes-monitor@" + digest, NewName: "registry.example.org/os/fdb-kubernetes-monitor"},
+		{Name: "foundationdb/fdb-kubernetes-monitor", NewName: "registry.example.org/os/fdb-kubernetes-monitor"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("override %d: got %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
+func TestIdempotent(t *testing.T) {
+	refs := []string{"ghcr.io/cloudnative-pg/postgresql:16.11", "redis:7.2"}
+	forward := []kustomize.Image{
+		{Name: "ghcr.io/cloudnative-pg/postgresql", NewName: "registry.os/postgresql"},
+		{Name: "registry.os/postgresql", NewName: "registry.os/pg-legacy"},
+	}
+	if err := Idempotent(refs, forward); err != nil {
+		t.Errorf("chain in order: %v", err)
+	}
+	backward := []kustomize.Image{forward[1], forward[0]}
+	err := Idempotent(refs, backward)
+	if err == nil || !strings.Contains(err.Error(), "registry.os/postgresql:16.11, then registry.os/pg-legacy:16.11") {
+		t.Errorf("chain against order: got %v", err)
+	}
+	if err := Idempotent(refs, nil); err != nil {
+		t.Errorf("empty table: %v", err)
+	}
+}
+
 // A registry host with a port must not be mistaken for a tag.
 func TestValidateAcceptsRegistryPort(t *testing.T) {
-	err := Validate([]kustomize.Image{{Name: "registry.example.org:5000/os/kubeovn", NewTag: "v1"}})
+	err := Validate([]Entry{{Image: kustomize.Image{Name: "registry.example.org:5000/os/kubeovn", NewTag: "v1"}}})
 	if err != nil {
 		t.Fatalf("Validate: %v", err)
 	}

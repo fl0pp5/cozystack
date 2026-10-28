@@ -277,7 +277,13 @@ func main() {
 			os.Exit(1)
 		}
 
-		if err := imageoverrides.Validate(images); err != nil {
+		// Every Flux controller runs one image at one version, so the table
+		// takes no version selector: a match field is an unknown field above.
+		entries := make([]imageoverrides.Entry, len(images))
+		for i, img := range images {
+			entries[i] = imageoverrides.Entry{Image: img}
+		}
+		if err := imageoverrides.Validate(entries); err != nil {
 			setupLog.Error(err, "invalid --flux-image-overrides")
 			os.Exit(1)
 		}
