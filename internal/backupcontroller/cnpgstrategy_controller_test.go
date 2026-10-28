@@ -1862,6 +1862,22 @@ func TestCNPGImageFlavor(t *testing.T) {
 	}
 }
 
+// A Cluster whose image the override table renamed carries its flavor in an
+// annotation, which wins over whatever the image name suggests.
+func TestCNPGClusterFlavor(t *testing.T) {
+	renamed := &cnpgtypes.Cluster{}
+	renamed.Annotations = map[string]string{cnpgFlavorAnnotation: "postgis"}
+	renamed.Spec.ImageName = "registry.example.org/os/pg-gis:18.1-3.6.1-standard-trixie"
+	if got := cnpgClusterFlavor(renamed); got != "postgis" {
+		t.Errorf("annotated Cluster: got %q, want postgis", got)
+	}
+	upstream := &cnpgtypes.Cluster{}
+	upstream.Spec.ImageName = "ghcr.io/cloudnative-pg/postgis:18-3.6"
+	if got := cnpgClusterFlavor(upstream); got != "postgis" {
+		t.Errorf("Cluster without annotation: got %q, want postgis", got)
+	}
+}
+
 // cnpgDynamicFor builds the dynamic client applyClusterPluginBackup reads
 // Clusters through, seeded independently of the typed client.
 func cnpgDynamicFor(t *testing.T, clusters ...*cnpgtypes.Cluster) dynamic.Interface {

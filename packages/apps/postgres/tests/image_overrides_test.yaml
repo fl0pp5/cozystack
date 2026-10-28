@@ -1,0 +1,199 @@
+suite: postgres image override table
+# CNPG reads the operand image from Cluster.spec.imageName, where the
+# post-renderer does not reach, so the chart applies the platform's override
+# table itself. One image runs at several majors, so match selects a version.
+# Renaming an image must not trip the flavor guard, and must not open a way
+# around it either.
+release:
+  name: pg-test
+  namespace: tenant-test
+set:
+  _cluster:
+    scheduling: {}
+    image-overrides:
+      - name: ghcr.io/cloudnative-pg/postgresql
+        match: {tag: "16.11"}
+        newName: registry.example.org/os/postgresql
+        newTag: "16.11-os1"
+        digest: sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f
+tests:
+  - it: rewrites the Cluster image of the major the entry matches
+    set:
+      version: v16
+    templates:
+      - templates/db.yaml
+    documentSelector:
+      path: kind
+      value: Cluster
+    asserts:
+      - equal:
+          path: spec.imageName
+          value: registry.example.org/os/postgresql:16.11-os1@sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f
+
+  - it: leaves the other majors alone
+    set:
+      version: v17
+    templates:
+      - templates/db.yaml
+    documentSelector:
+      path: kind
+      value: Cluster
+    asserts:
+      - matchRegex:
+          path: spec.imageName
+          pattern: ^ghcr\.io/cloudnative-pg/postgresql:17\.[0-9]+$
+
+  - it: runs the init Job from the same rewritten image
+    set:
+      version: v16
+    templates:
+      - templates/init-job.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: registry.example.org/os/postgresql:16.11-os1@sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f
+
+  - it: lets a live cluster move to the name the table gives its image
+    set:
+      _cluster:
+        scheduling: {}
+        image-overrides:
+          - name: ghcr.io/cloudnative-pg/postgresql
+            newName: registry.example.org/os/cozystack-postgresql
+    kubernetesProvider:
+      scheme:
+        "postgresql.cnpg.io/v1/Cluster":
+          gvr: {group: postgresql.cnpg.io, version: v1, resource: clusters}
+          namespaced: true
+      objects:
+        - apiVersion: postgresql.cnpg.io/v1
+          kind: Cluster
+          metadata: {name: pg-test, namespace: tenant-test}
+          spec: {imageName: "ghcr.io/cloudnative-pg/postgresql:18.1"}
+    templates:
+      - templates/db.yaml
+    asserts:
+      - notFailedTemplate: {}
+
+  - it: still refuses a flavor change when the live image carries the renamed name
+    set:
+      _cluster:
+        scheduling: {}
+        image-overrides:
+          - name: ghcr.io/cloudnative-pg/postgis
+            newName: registry.example.org/os/pg-gis
+    kubernetesProvider:
+      scheme:
+        "postgresql.cnpg.io/v1/Cluster":
+          gvr: {group: postgresql.cnpg.io, version: v1, resource: clusters}
+          namespaced: true
+      objects:
+        - apiVersion: postgresql.cnpg.io/v1
+          kind: Cluster
+          metadata: {name: pg-test, namespace: tenant-test}
+          spec: {imageName: "registry.example.org/os/pg-gis:18.1-3.6.1-standard-trixie"}
+    templates:
+      - templates/db.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: "flavor cannot change on an existing cluster \\(running postgis, requested postgresql\\)"
+
+  - it: records the flavor on a Cluster whose image the table renamed
+    set:
+      version: v16
+    templates:
+      - templates/db.yaml
+    documentSelector:
+      path: kind
+      value: Cluster
+    asserts:
+      - equal:
+          path: metadata.annotations["postgres.cozystack.io/flavor"]
+          value: postgresql
+
+  - it: records no flavor when the table leaves the image alone
+    set:
+      version: v17
+    templates:
+      - templates/db.yaml
+    documentSelector:
+      path: kind
+      value: Cluster
+    asserts:
+      - notExists:
+          path: metadata.annotations
+
+  - it: lets a renamed live cluster go back to the upstream name when the table is removed
+    set:
+      flavor: postgis
+      _cluster:
+        scheduling: {}
+    kubernetesProvider:
+      scheme:
+        "postgresql.cnpg.io/v1/Cluster":
+          gvr: {group: postgresql.cnpg.io, version: v1, resource: clusters}
+          namespaced: true
+      objects:
+        - apiVersion: postgresql.cnpg.io/v1
+          kind: Cluster
+          metadata:
+            name: pg-test
+            namespace: tenant-test
+            annotations: {postgres.cozystack.io/flavor: postgis}
+          spec: {imageName: "registry.example.org/os/pg-gis:18.1-3.6.1-standard-trixie"}
+    templates:
+      - templates/db.yaml
+    asserts:
+      - notFailedTemplate: {}
+
+  - it: refuses a flavor change against the recorded flavor once the table is gone
+    set:
+      _cluster:
+        scheduling: {}
+    kubernetesProvider:
+      scheme:
+        "postgresql.cnpg.io/v1/Cluster":
+          gvr: {group: postgresql.cnpg.io, version: v1, resource: clusters}
+          namespaced: true
+      objects:
+        - apiVersion: postgresql.cnpg.io/v1
+          kind: Cluster
+          metadata:
+            name: pg-test
+            namespace: tenant-test
+            annotations: {postgres.cozystack.io/flavor: postgis}
+          spec: {imageName: "registry.example.org/os/pg-gis:18.1-3.6.1-standard-trixie"}
+    templates:
+      - templates/db.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: "flavor cannot change on an existing cluster \\(running postgis, requested postgresql\\)"
+
+  - it: holds a recovery to the flavor recorded on its source
+    set:
+      bootstrap:
+        enabled: true
+        oldName: pg-old
+      backup:
+        s3AccessKey: access
+        s3SecretKey: secret
+      _cluster:
+        scheduling: {}
+    kubernetesProvider:
+      scheme:
+        "postgresql.cnpg.io/v1/Cluster":
+          gvr: {group: postgresql.cnpg.io, version: v1, resource: clusters}
+          namespaced: true
+      objects:
+        - apiVersion: postgresql.cnpg.io/v1
+          kind: Cluster
+          metadata:
+            name: pg-old
+            namespace: tenant-test
+            annotations: {postgres.cozystack.io/flavor: postgis}
+          spec: {imageName: "registry.example.org/os/pg-gis:18.1-3.6.1-standard-trixie"}
+    templates:
+      - templates/db.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: "cannot recover a postgis backup of pg-old into the postgresql flavor"

@@ -15,6 +15,9 @@ spec:
     - cozystack.networking
     - cozystack.cert-manager
     - cozystack.vertical-pod-autoscaler
+    libraries:
+    - name: cozy-lib
+      path: library/cozy-lib
     components:
     - name: etcd-operator-crds
       path: system/etcd-operator-crds
@@ -23,6 +26,7 @@ spec:
         releaseName: etcd-operator-crds
     - name: etcd-operator
       path: system/etcd-operator
+      libraries: ["cozy-lib"]
       install:
         namespace: cozy-etcd-operator
         releaseName: etcd-operator

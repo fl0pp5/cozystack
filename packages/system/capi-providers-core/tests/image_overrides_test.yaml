@@ -1,0 +1,24 @@
+suite: cluster-api manager image follows the image override table
+
+# The cluster-api operator deploys the manager from files/components.gz, out
+# of the post-renderer's reach. The chart sets imageUrl only when the
+# platform's override table changes the image, so that without a table the
+# archive decides.
+templates:
+  - templates/providers.yaml
+tests:
+  - it: leaves the image to the archive without a table
+    asserts:
+      - notExists: {path: 'spec.deployment.containers[0].imageUrl'}
+
+  - it: sets imageUrl to the renamed image
+    set:
+      _cluster:
+        image-overrides:
+          - name: registry.k8s.io/cluster-api/cluster-api-controller
+            newName: registry.example.org/os/cluster-api-controller
+            newTag: v1.10.1-os1
+    asserts:
+      - equal:
+          path: spec.deployment.containers[0].imageUrl
+          value: registry.example.org/os/cluster-api-controller:v1.10.1-os1

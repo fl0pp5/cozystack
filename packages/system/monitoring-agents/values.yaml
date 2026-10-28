@@ -300,6 +300,13 @@ kube-state-metrics:
                   source_name: [ spec, sourceRef, name ]
 
 vmagent:
+  # The images the VictoriaMetrics operator v0.68.4 runs when the VMAgent names
+  # none (VM_METRICS_VERSION and the operator's own version). The chart sets
+  # them in the VMAgent only when the platform's image override table changes
+  # them, so without a table the operator keeps choosing. `make update` in
+  # victoria-metrics-operator re-pins both from the operator it vendors.
+  image: victoriametrics/vmagent:v1.136.0@sha256:30efe54696dfb352fe89a1a8b0c977cfce5507f81b85741632bd810fa3e4fe86
+  configReloaderImage: victoriametrics/operator:config-reloader-v0.68.4@sha256:a2f673d6bab3e9fe81b352c2c29a11ff1cbf284c3268757f7f198455e757e301
   externalLabels:
     cluster: cozystack
   remoteWrite:

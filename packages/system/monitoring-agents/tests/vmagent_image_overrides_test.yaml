@@ -1,0 +1,52 @@
+suite: VMAgent images follow the image override table
+
+# The VictoriaMetrics operator runs vmagent and its config reloader from its
+# own defaults, which the post-renderer never sees. The chart names them in
+# the VMAgent only when the platform's override table changes them, so that
+# without a table the operator keeps choosing the version.
+release:
+  name: monitoring-agents
+  namespace: cozy-monitoring
+templates:
+  - templates/vmagent.yaml
+documentSelector:
+  path: kind
+  value: VMAgent
+tests:
+  - it: leaves the images to the operator without a table
+    asserts:
+      - notExists: {path: spec.image}
+      - notExists: {path: spec.configReloaderImage}
+
+  - it: names the renamed images in the VMAgent
+    set:
+      _cluster:
+        image-overrides:
+          - name: victoriametrics/vmagent
+            newName: registry.example.org/os/vmagent
+            newTag: v1.136.0-os1
+          - name: victoriametrics/operator
+            match: {tag: config-reloader-v0.68.4}
+            newName: registry.example.org/os/vm-config-reloader
+    asserts:
+      - equal:
+          path: spec.image
+          value:
+            repository: registry.example.org/os/vmagent
+            tag: v1.136.0-os1
+      - equal:
+          path: spec.configReloaderImage
+          value: registry.example.org/os/vm-config-reloader:config-reloader-v0.68.4@sha256:a2f673d6bab3e9fe81b352c2c29a11ff1cbf284c3268757f7f198455e757e301
+
+  - it: keeps the tag when an entry repins the digest alone, since the operator joins repository and tag
+    set:
+      _cluster:
+        image-overrides:
+          - name: victoriametrics/vmagent
+            digest: sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f
+    asserts:
+      - equal:
+          path: spec.image
+          value:
+            repository: victoriametrics/vmagent
+            tag: v1.136.0@sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f

@@ -72,6 +72,9 @@ const (
 	// Annotation the postgres chart renders on the Cluster from
 	// bootstrap.newServerName.
 	cnpgRestoredServerNameAnnotation = "postgres.cozystack.io/restored-server-name"
+	// Annotation the postgres chart renders on a Cluster whose image the
+	// override table renamed, recording the flavor the name no longer shows.
+	cnpgFlavorAnnotation = "postgres.cozystack.io/flavor"
 
 	// Polling cadence for the CNPG backup/restore lifecycle. Mirrors the
 	// Velero strategy's defaults so behaviour is uniform across drivers.
@@ -615,7 +618,7 @@ func (r *BackupJobReconciler) applyClusterPluginBackup(ctx context.Context, name
 	}
 	attachment := cnpgPluginAttachment{
 		serverName:    serverName,
-		flavor:        cnpgImageFlavor(existing.Spec.ImageName),
+		flavor:        cnpgClusterFlavor(existing),
 		clusterStatus: existing.Status,
 	}
 	if live := currentBarmanServerName(existing); live != "" {
@@ -1681,6 +1684,17 @@ func cnpgFlavor(flavor string) string {
 		return "postgresql"
 	}
 	return flavor
+}
+
+// cnpgClusterFlavor names the flavor a Cluster runs the way the chart's
+// postgres.clusterFlavor does. The image name tells it only under the upstream
+// names; when the platform's image override table renames the image, the chart
+// records the flavor in an annotation instead.
+func cnpgClusterFlavor(cluster *cnpgtypes.Cluster) string {
+	if flavor := cluster.Annotations[cnpgFlavorAnnotation]; flavor != "" {
+		return flavor
+	}
+	return cnpgImageFlavor(cluster.Spec.ImageName)
 }
 
 // cnpgImageFlavor names the flavor of a Cluster's spec.imageName the way the

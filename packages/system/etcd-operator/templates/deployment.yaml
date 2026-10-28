@@ -1,4 +1,11 @@
-{{- $image := printf "%s:%s" .Values.image.repository (.Values.image.tag | default .Chart.AppVersion) }}
+{{- /* The image override table is applied here rather than left to the
+post-renderer, which would rewrite the container but not OPERATOR_IMAGE. */}}
+{{- $image := include "cozy-lib.image" (list (printf "%s:%s" .Values.image.repository (.Values.image.tag | default .Chart.AppVersion)) $) }}
+{{- /* The operator's default etcd repository; members run as
+<repository>:v<version>, so only a new name from the table can apply. The env
+is set only when the name changes, so that a cluster without a table renders
+as it did. */}}
+{{- $etcdRepository := include "cozy-lib.imageName" (list "quay.io/coreos/etcd" $) }}
 {{- $clusterDomain := .Values.clusterDomain | default (index (.Values._cluster | default dict) "cluster-domain") | default "cozy.local" }}
 apiVersion: apps/v1
 kind: Deployment
@@ -44,6 +51,10 @@ spec:
         # restore init container run the operator image as the agent.
         - name: OPERATOR_IMAGE
           value: {{ $image | quote }}
+        {{- if ne $etcdRepository "quay.io/coreos/etcd" }}
+        - name: ETCD_IMAGE_REPOSITORY
+          value: {{ $etcdRepository | quote }}
+        {{- end }}
         ports:
         - name: metrics
           containerPort: 8080

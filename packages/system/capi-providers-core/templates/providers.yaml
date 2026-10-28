@@ -13,6 +13,10 @@ spec:
   deployment:
     containers:
     - name: manager
+      {{- $image := include "cozy-lib.image" (list .Values.managerImage $) }}
+      {{- if ne $image .Values.managerImage }}
+      imageUrl: {{ $image | quote }}
+      {{- end }}
       resources:
         limits:
           cpu: 500m

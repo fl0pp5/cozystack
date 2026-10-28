@@ -99,3 +99,47 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].resources.limits.memory
           value: 256Mi
+
+  # The agent runs OPERATOR_IMAGE, which the post-renderer does not reach, so
+  # the chart applies the platform's override table to both refs itself.
+  - it: "the override table rewrites the container and the agent OPERATOR_IMAGE alike"
+    set:
+      image:
+        tag: v0.5.6
+      _cluster:
+        image-overrides:
+          - name: ghcr.io/cozystack/etcd-operator
+            newName: registry.example.org/os/etcd-operator
+            newTag: v0.5.6-os1
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: registry.example.org/os/etcd-operator:v0.5.6-os1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OPERATOR_IMAGE
+            value: registry.example.org/os/etcd-operator:v0.5.6-os1
+
+  - it: "without a table the operator keeps its default etcd repository and no ETCD_IMAGE_REPOSITORY is set"
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          any: true
+          content:
+            name: ETCD_IMAGE_REPOSITORY
+
+  # Members run as <repository>:v<version>; the operator takes a repository
+  # and adds the tag, so only a new name reaches them.
+  - it: "a table renaming the etcd image sets ETCD_IMAGE_REPOSITORY to the new name"
+    set:
+      _cluster:
+        image-overrides:
+          - name: quay.io/coreos/etcd
+            newName: registry.example.org/os/etcd
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ETCD_IMAGE_REPOSITORY
+            value: registry.example.org/os/etcd

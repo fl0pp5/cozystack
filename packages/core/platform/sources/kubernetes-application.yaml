@@ -55,6 +55,7 @@ spec:
           path: system/cert-manager
         - name: kubernetes-monitoring-agents
           path: system/monitoring-agents
+          libraries: ["cozy-lib"]
         - name: kubernetes-cilium
           path: system/cilium
         - name: kubernetes-gpu-operator

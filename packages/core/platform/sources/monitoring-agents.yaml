@@ -16,9 +16,13 @@ spec:
         - cozystack.metrics-server
         - cozystack.victoria-metrics-operator
         - cozystack.vertical-pod-autoscaler
+      libraries:
+        - name: cozy-lib
+          path: library/cozy-lib
       components:
         - name: monitoring-agents
           path: system/monitoring-agents
+          libraries: ["cozy-lib"]
           install:
             releaseName: monitoring-agents
             namespace: cozy-monitoring

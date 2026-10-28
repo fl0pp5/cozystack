@@ -23,6 +23,22 @@ spec:
   additionalScrapeConfigs:
     name: additional-scrape-configs
     key: prometheus-additional.yaml
+  {{- /* The operator runs these images from its own defaults, where the
+  post-renderer does not reach them; the image override table applies here,
+  and only when it changes them. The operator joins repository and tag with
+  ':', so a reference repinned by digest alone keeps its tag. */}}
+  {{- $image := include "cozy-lib.image" (list .Values.vmagent.image $) }}
+  {{- if ne $image .Values.vmagent.image }}
+  {{-   $parts := include "cozy-lib.imageParts" (list .Values.vmagent.image $) | fromYaml }}
+  {{-   $tag := $parts.tag | default (include "cozy-lib.imageOverrides.split" .Values.vmagent.image | fromYaml).tag }}
+  image:
+    repository: {{ ternary (printf "%s/%s" $parts.registry $parts.repository) $parts.repository (not (empty $parts.registry)) | quote }}
+    tag: {{ ternary (printf "%s@%s" $tag $parts.digest) $tag (not (empty $parts.digest)) | quote }}
+  {{- end }}
+  {{- $reloader := include "cozy-lib.image" (list .Values.vmagent.configReloaderImage $) }}
+  {{- if ne $reloader .Values.vmagent.configReloaderImage }}
+  configReloaderImage: {{ $reloader | quote }}
+  {{- end }}
   resources: {}
   configReloaderResources: {}
   #statefulMode: true

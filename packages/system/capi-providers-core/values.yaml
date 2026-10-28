@@ -1,0 +1,6 @@
+# The manager image of files/components.gz, which the cluster-api operator
+# deploys from the archive, out of the post-renderer's reach. The chart sets
+# imageUrl only when the platform's image override table changes this
+# reference, so without a table the archive decides.
+# hack/image-override-defaults_test.bats holds it to files/core-components.yaml.
+managerImage: registry.k8s.io/cluster-api/cluster-api-controller:v1.10.1@sha256:a36a3047d23766f261153e0d73537f2866456284d382c0774dd05aa7f4310b75

@@ -21,3 +21,6 @@ update:
 	helm repo add fluent https://fluent.github.io/helm-charts
 	helm repo update fluent
 	helm pull fluent/fluent-bit --untar --untardir charts
+	# cozy-lib is a link into the tree rather than a vendored chart, and the
+	# rm -rf above took it with the rest of charts/.
+	ln -sfn ../../../library/cozy-lib charts/cozy-lib
