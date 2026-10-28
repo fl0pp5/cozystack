@@ -11,6 +11,11 @@ else, so every chart that emits one must call this helper, or the images that
 release installs keep their upstream names. hack/helmrelease-postrenderers_test.bats
 holds every HelmRelease template in the tree to that.
 
+An entry's match, which narrows it to one version of the image, is folded into
+the name as name:tag or name@digest, the way pkg/imageoverrides.Compile does:
+kustomize matches the name as the reference up to the tag and digest it does
+not name.
+
 The first argument is the release's own post-renderers (a list, possibly
 empty); they are kept ahead of the override renderer, so that it rewrites what
 they render. Nothing is rendered when there are neither own post-renderers nor
@@ -28,8 +33,16 @@ Usage, inside the HelmRelease spec:
 {{-   $ctx := index . 1 }}
 {{-   $overrides := index ($ctx.Values._cluster | default dict) "image-overrides" | default list }}
 {{-   $all := $own }}
-{{-   if $overrides }}
-{{-     $all = append $own (dict "kustomize" (dict "images" $overrides)) }}
+{{-   $images := list }}
+{{-   range $overrides }}
+{{-     $image := omit . "match" }}
+{{-     with .match }}
+{{-       $_ := set $image "name" (ternary (printf "%s:%s" $image.name .tag) (printf "%s@%s" $image.name .digest) (not (empty .tag))) }}
+{{-     end }}
+{{-     $images = append $images $image }}
+{{-   end }}
+{{-   if $images }}
+{{-     $all = append $own (dict "kustomize" (dict "images" $images)) }}
 {{-   end }}
 {{-   with $all }}
 postRenderers:

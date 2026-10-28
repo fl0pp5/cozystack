@@ -76,6 +76,25 @@ _cluster:
 	}
 }
 
+// The platform chart passes match through as it is; the release must get it
+// folded into the name, as cozy-lib.postRenderers renders it.
+func TestPackageReconcilerFoldsImageOverrideMatch(t *testing.T) {
+	cl, err := reconcileOverrides(t, overridesSecret(`
+_cluster:
+  image-overrides:
+  - name: foundationdb/fdb-kubernetes-monitor
+    match: {tag: 7.3.63}
+    newTag: 7.3.63-os1
+`))
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	want := imageoverrides.PostRenderers([]kustomize.Image{{Name: "foundationdb/fdb-kubernetes-monitor:7.3.63", NewTag: "7.3.63-os1"}})
+	if hr := getOverridesHR(t, cl); !apiequality.Semantic.DeepEqual(hr.Spec.PostRenderers, want) {
+		t.Fatalf("got %+v, want %+v", hr.Spec.PostRenderers, want)
+	}
+}
+
 func TestPackageReconcilerWithoutImageOverrides(t *testing.T) {
 	for name, objs := range map[string][]client.Object{
 		"no secret":   nil,

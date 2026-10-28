@@ -307,11 +307,11 @@ list and drop the table without a word. */}}
 {{-     fail (printf "registries.imageOverrides[%d] must be a map" $i) }}
 {{-   end }}
 {{-   range $k, $v := $o }}
-{{-     if not (has $k (list "name" "newName" "newTag" "digest")) }}
+{{-     if not (has $k (list "name" "newName" "newTag" "digest" "match")) }}
 {{-       fail (printf "registries.imageOverrides[%d]: unknown field %q" $i $k) }}
 {{-     end }}
 {{- /* An unquoted tag such as 1.20 arrives as the number 1.2. */}}
-{{-     if not (kindIs "string" $v) }}
+{{-     if and (ne $k "match") (not (kindIs "string" $v)) }}
 {{-       fail (printf "registries.imageOverrides[%d].%s must be a string, got %s; quote it" $i $k (kindOf $v)) }}
 {{-     end }}
 {{-   end }}
@@ -322,16 +322,47 @@ list and drop the table without a word. */}}
 {{-   if or (contains "@" $name) (contains ":" (last (splitList "/" $name))) }}
 {{-     fail (printf "registries.imageOverrides[%d]: name %q must not carry a tag or digest" $i $name) }}
 {{-   end }}
+{{- /* kustomize turns the name into a regular expression unescaped. */}}
+{{-   if not (regexMatch "^[A-Za-z0-9]([A-Za-z0-9._/:-]*[A-Za-z0-9])?$" $name) }}
+{{-     fail (printf "registries.imageOverrides[%d]: name %q is not an image name" $i $name) }}
+{{-   end }}
 {{-   if not (or $o.newName $o.newTag $o.digest) }}
 {{-     fail (printf "registries.imageOverrides[%d]: %q sets none of newName, newTag, digest" $i $name) }}
 {{-   end }}
 {{-   if and $o.digest (not (regexMatch "^sha256:[0-9a-f]{64}$" (toString $o.digest))) }}
 {{-     fail (printf "registries.imageOverrides[%d]: digest %q is not sha256:<64 hex>" $i (toString $o.digest)) }}
 {{-   end }}
-{{-   if hasKey $seen $name }}
-{{-     fail (printf "registries.imageOverrides[%d]: %q is listed twice" $i $name) }}
+{{-   $selector := $name }}
+{{-   if hasKey $o "match" }}
+{{-     $m := $o.match }}
+{{-     if not (kindIs "map" $m) }}
+{{-       fail (printf "registries.imageOverrides[%d].match must be a map" $i) }}
+{{-     end }}
+{{-     range $k, $v := $m }}
+{{-       if not (has $k (list "tag" "digest")) }}
+{{-         fail (printf "registries.imageOverrides[%d].match: unknown field %q" $i $k) }}
+{{-       end }}
+{{-       if not (kindIs "string" $v) }}
+{{-         fail (printf "registries.imageOverrides[%d].match.%s must be a string, got %s; quote it" $i $k (kindOf $v)) }}
+{{-       end }}
+{{-     end }}
+{{-     if eq (not $m.tag) (not $m.digest) }}
+{{-       fail (printf "registries.imageOverrides[%d]: match on %q must set exactly one of tag, digest" $i $name) }}
+{{-     end }}
+{{-     if and $m.tag (not (regexMatch "^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$" $m.tag)) }}
+{{-       fail (printf "registries.imageOverrides[%d]: match.tag %q is not an image tag" $i $m.tag) }}
+{{-     end }}
+{{-     if and $m.digest (not (regexMatch "^sha256:[0-9a-f]{64}$" $m.digest)) }}
+{{-       fail (printf "registries.imageOverrides[%d]: match.digest %q is not sha256:<64 hex>" $i $m.digest) }}
+{{-     end }}
+{{-     $selector = ternary (printf "%s:%s" $name $m.tag) (printf "%s@%s" $name $m.digest) (not (empty $m.tag)) }}
 {{-   end }}
-{{-   $_ := set $seen $name true }}
+{{- /* One entry per name and version: match lets the same name appear once
+per tag or digest besides the entry without match. */}}
+{{-   if hasKey $seen $selector }}
+{{-     fail (printf "registries.imageOverrides[%d]: %q is listed twice" $i $selector) }}
+{{-   end }}
+{{-   $_ := set $seen $selector true }}
 {{- end }}
 {{- toYaml $overrides }}
 {{- end }}

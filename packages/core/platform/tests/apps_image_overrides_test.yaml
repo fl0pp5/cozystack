@@ -138,3 +138,136 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: 'registries.imageOverrides\[0\].newTag must be a string, got float64; quote it'
+
+  - it: passes match through, so every reader folds it the same way
+    set:
+      registries:
+        imageOverrides:
+          - name: foundationdb/fdb-kubernetes-monitor
+            match: {tag: 7.3.63}
+            newTag: 7.3.63-os1
+    asserts:
+      - matchRegex:
+          path: stringData["values.yaml"]
+          pattern: '(?m)^    - match:\n        tag: 7.3.63\n      name: foundationdb/fdb-kubernetes-monitor\n      newTag: 7.3.63-os1$'
+
+  - it: accepts the same name once per version and once without match
+    set:
+      registries:
+        imageOverrides:
+          - name: foundationdb/fdb-kubernetes-monitor
+            match: {tag: 7.3.63}
+            newTag: 7.3.63-os1
+          - name: foundationdb/fdb-kubernetes-monitor
+            match: {tag: 7.4.1}
+            newTag: 7.4.1-os1
+          - name: foundationdb/fdb-kubernetes-monitor
+            match: {digest: sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f}
+            newName: registry.example.org/os/fdb-kubernetes-monitor
+          - name: foundationdb/fdb-kubernetes-monitor
+            newName: registry.example.org/os/fdb-kubernetes-monitor
+    asserts:
+      - matchRegex:
+          path: stringData["values.yaml"]
+          pattern: 'tag: 7.4.1'
+
+  - it: refuses one version listed twice
+    set:
+      registries:
+        imageOverrides:
+          - name: a/b
+            match: {tag: v1}
+            newName: c/d
+          - name: a/b
+            match: {tag: v1}
+            newTag: v2
+    asserts:
+      - failedTemplate:
+          errorPattern: '"a/b:v1" is listed twice'
+
+  - it: refuses a match with both tag and digest
+    set:
+      registries:
+        imageOverrides:
+          - name: a/b
+            match: {tag: v1, digest: sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f}
+            newName: c/d
+    asserts:
+      - failedTemplate:
+          errorPattern: 'match on "a/b" must set exactly one of tag, digest'
+
+  - it: refuses an empty match
+    set:
+      registries:
+        imageOverrides:
+          - name: a/b
+            match: {}
+            newName: c/d
+    asserts:
+      - failedTemplate:
+          errorPattern: 'must set exactly one of tag, digest'
+
+  - it: refuses a match that is not a map
+    set:
+      registries:
+        imageOverrides:
+          - name: a/b
+            match: v1
+            newName: c/d
+    asserts:
+      - failedTemplate:
+          errorPattern: 'registries.imageOverrides\[0\].match must be a map'
+
+  - it: refuses an unknown field in match
+    set:
+      registries:
+        imageOverrides:
+          - name: a/b
+            match: {version: v1}
+            newName: c/d
+    asserts:
+      - failedTemplate:
+          errorPattern: 'match: unknown field "version"'
+
+  - it: refuses a match tag YAML read as a number
+    set:
+      registries:
+        imageOverrides:
+          - name: a/b
+            match: {tag: 7.30}
+            newName: c/d
+    asserts:
+      - failedTemplate:
+          errorPattern: 'match.tag must be a string, got float64; quote it'
+
+  - it: refuses a malformed match tag
+    set:
+      registries:
+        imageOverrides:
+          - name: a/b
+            match: {tag: "v1 x"}
+            newName: c/d
+    asserts:
+      - failedTemplate:
+          errorPattern: 'match.tag "v1 x" is not an image tag'
+
+  - it: refuses a malformed match digest
+    set:
+      registries:
+        imageOverrides:
+          - name: a/b
+            match: {digest: sha256:abc}
+            newName: c/d
+    asserts:
+      - failedTemplate:
+          errorPattern: 'match.digest "sha256:abc" is not sha256:<64 hex>'
+
+  - it: refuses a name kustomize cannot turn into a pattern
+    set:
+      registries:
+        imageOverrides:
+          - name: a/(b)
+            newName: c/d
+    asserts:
+      - failedTemplate:
+          errorPattern: 'name "a/\(b\)" is not an image name'

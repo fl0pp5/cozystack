@@ -83,3 +83,28 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: "own post-renderers must be a list"
+
+  - it: folds match into the name kustomize selects by
+    set:
+      _cluster:
+        image-overrides:
+          - name: foundationdb/fdb-kubernetes-monitor
+            match: {tag: 7.3.63}
+            newTag: 7.3.63-os1
+          - name: foundationdb/fdb-kubernetes-monitor
+            match: {digest: "sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f"}
+            newName: registry.example.org/os/fdb-kubernetes-monitor
+          - name: foundationdb/fdb-kubernetes-monitor
+            newName: registry.example.org/os/fdb-kubernetes-monitor
+    asserts:
+      - equal:
+          path: spec.postRenderers
+          value:
+            - kustomize:
+                images:
+                  - name: foundationdb/fdb-kubernetes-monitor:7.3.63
+                    newTag: 7.3.63-os1
+                  - name: foundationdb/fdb-kubernetes-monitor@sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f
+                    newName: registry.example.org/os/fdb-kubernetes-monitor
+                  - name: foundationdb/fdb-kubernetes-monitor
+                    newName: registry.example.org/os/fdb-kubernetes-monitor
