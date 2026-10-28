@@ -39,13 +39,21 @@ with no leading "/", which would otherwise be an invalid reference.
 A trailing "/" on the registry and a leading "/" on the image path are trimmed
 so a misconfigured images-registry ("registry.example.com/") cannot produce a
 double slash in the rendered reference.
+The image override table (_cluster.image-overrides) is applied last, to the
+reference the post-renderer would see in a container: a reference that lands
+in one passes through the table twice, which an idempotent table makes
+harmless, and one that does not (a custom resource field, an argument)
+is reached only here.
 */}}
 {{- define "cozy-lib.image" -}}
 {{- include "cozy-lib.checkInput" . }}
 {{- $image := index . 0 | trimPrefix "/" }}
 {{- $ctx := index . 1 }}
 {{- $registry := include "cozy-lib.images-registry" $ctx | trimSuffix "/" }}
-{{- with $registry }}{{ . }}/{{ end }}{{ $image }}
+{{- with $registry }}
+{{-   $image = printf "%s/%s" . $image }}
+{{- end }}
+{{- include "cozy-lib.imageWith" (list $image (include "cozy-lib.imageOverrides.table" $ctx | fromYaml).table) }}
 {{- end }}
 
 {{/*

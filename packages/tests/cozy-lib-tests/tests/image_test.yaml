@@ -1,0 +1,108 @@
+suite: cozy-lib image helpers apply the image override table
+
+templates:
+  - templates/tests/image.yaml
+
+# The helpers reach image references a container spec does not hold, which the
+# post-renderer never sees. Without a table they must render exactly what
+# cozy-lib.image rendered before the table existed; with one, what kustomize
+# renders (hack/cozy-lib-image-parity_test.bats checks the rules themselves).
+
+tests:
+  - it: leaves the reference alone without a table
+    asserts:
+      - equal: {path: data.image, value: "quay.io/org/app:v1"}
+      - equal: {path: data.parts, value: '{"digest":"","registry":"quay.io","repository":"org/app","tag":"v1"}'}
+      - equal: {path: data.name, value: "quay.io/org/app"}
+      - equal: {path: data.entry, value: '{}'}
+
+  - it: prefixes images-registry as before
+    set:
+      ref: /clastix/kubectl:v1.32
+      _cluster:
+        images-registry: registry.example.com/
+    asserts:
+      - equal: {path: data.image, value: "registry.example.com/clastix/kubectl:v1.32"}
+
+  - it: applies the table to the reference images-registry produced
+    set:
+      ref: clastix/kubectl:v1.32
+      _cluster:
+        images-registry: registry.example.com
+        image-overrides:
+          - name: clastix/kubectl
+            newName: wrong/kubectl
+          - name: registry.example.com/clastix/kubectl
+            newName: registry.example.com/os/kubectl
+    asserts:
+      - equal: {path: data.image, value: "registry.example.com/os/kubectl:v1.32"}
+
+  - it: keeps a registry port out of the tag
+    set:
+      ref: registry.example.org:5000/os/app:v1
+      _cluster:
+        image-overrides:
+          - name: registry.example.org:5000/os/app
+            newTag: v2
+    asserts:
+      - equal: {path: data.image, value: "registry.example.org:5000/os/app:v2"}
+      - equal: {path: data.parts, value: '{"digest":"","registry":"registry.example.org:5000","repository":"os/app","tag":"v2"}'}
+
+  - it: drops the tag when an entry repins only the digest
+    set:
+      ref: quay.io/org/app:v1
+      _cluster:
+        image-overrides:
+          - name: quay.io/org/app
+            digest: sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f
+    asserts:
+      - equal: {path: data.image, value: "quay.io/org/app@sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f"}
+      - equal: {path: data.parts, value: '{"digest":"sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f","registry":"quay.io","repository":"org/app","tag":""}'}
+      - equal: {path: data.entry, value: '{"digest":"sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f","dropTag":true}'}
+
+  - it: rewrites only the version match selects
+    set:
+      ref: foundationdb/fdb-kubernetes-monitor:7.4.1
+      _cluster:
+        image-overrides:
+          - name: foundationdb/fdb-kubernetes-monitor
+            match: {tag: 7.3.63}
+            newTag: 7.3.63-os1
+    asserts:
+      - equal: {path: data.image, value: "foundationdb/fdb-kubernetes-monitor:7.4.1"}
+
+  - it: gives a docker.io short name no registry part
+    set:
+      ref: foundationdb/fdb-kubernetes-monitor:7.3.63
+      _cluster:
+        image-overrides:
+          - name: foundationdb/fdb-kubernetes-monitor
+            match: {tag: 7.3.63}
+            newTag: 7.3.63-os1
+    asserts:
+      - equal: {path: data.image, value: "foundationdb/fdb-kubernetes-monitor:7.3.63-os1"}
+      - equal: {path: data.parts, value: '{"digest":"","registry":"","repository":"foundationdb/fdb-kubernetes-monitor","tag":"7.3.63-os1"}'}
+
+  - it: names an image only after entries without match
+    set:
+      name: quay.io/coreos/etcd
+      _cluster:
+        image-overrides:
+          - name: quay.io/coreos/etcd
+            match: {tag: v3.5.12}
+            newName: wrong/etcd
+          - name: quay.io/coreos/etcd
+            newName: registry.example.org/os/etcd
+            newTag: "3.5.12"
+    asserts:
+      - equal: {path: data.name, value: "registry.example.org/os/etcd"}
+      - equal: {path: data.entry, value: '{"newName":"registry.example.org/os/etcd","newTag":"3.5.12"}'}
+
+  - it: reads the table a vendored subchart is given under its own key
+    set:
+      ref: quay.io/org/app:v1
+      cozystackImageOverrides:
+        - name: quay.io/org/app
+          newName: registry.example.org/os/app
+    asserts:
+      - equal: {path: data.image, value: "registry.example.org/os/app:v1"}
