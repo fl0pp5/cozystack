@@ -41,6 +41,15 @@ spec:
   - name: {{ .Release.Name }}-metrics-server
     namespace: {{ .Release.Namespace }}
   values:
+    {{- /* The cozystack-values Secret does not reach the tenant cluster, and
+    the chart applies the image override table to the images the
+    VictoriaMetrics operator picks there, which the post-renderer above
+    does not see; so the table is passed in the values. */}}
+    {{- with index (.Values._cluster | default dict) "image-overrides" }}
+    _cluster:
+      image-overrides:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
     vmagent:
       externalLabels:
         cluster: {{ .Release.Name }}

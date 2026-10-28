@@ -1,0 +1,45 @@
+suite: tenant monitoring-agents receive the image override table
+# The monitoring-agents chart applies the platform's image override table to
+# the images the VictoriaMetrics operator runs in the tenant cluster, where the
+# post-renderer does not reach. The cozystack-values Secret stays in the
+# management cluster, so the release passes the table in its values, and
+# passes nothing when there is no table.
+templates:
+  - templates/helmreleases/monitoring-agents.yaml
+release:
+  name: kubernetes-test
+  namespace: tenant-test
+set:
+  _namespace:
+    etcd: etcd-test
+    monitoring: tenant-root
+  _cluster:
+    cluster-domain: cozy.local
+  addons:
+    monitoringAgents:
+      enabled: true
+tests:
+  - it: passes no _cluster without a table
+    asserts:
+      - notExists:
+          path: spec.values._cluster
+
+  - it: passes the table, match included, as the chart reads it
+    set:
+      _cluster:
+        cluster-domain: cozy.local
+        image-overrides:
+          - name: victoriametrics/vmagent
+            match: {tag: v1.136.0}
+            newName: registry.example.org/os/vmagent
+    asserts:
+      - equal:
+          path: spec.values._cluster
+          value:
+            image-overrides:
+              - name: victoriametrics/vmagent
+                match: {tag: v1.136.0}
+                newName: registry.example.org/os/vmagent
+      - equal:
+          path: spec.postRenderers[0].kustomize.images[0].name
+          value: victoriametrics/vmagent:v1.136.0
