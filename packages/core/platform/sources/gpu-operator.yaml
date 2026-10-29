@@ -13,9 +13,13 @@ spec:
   - name: default
     dependsOn:
     - cozystack.networking
+    libraries:
+    - name: cozy-lib
+      path: library/cozy-lib
     components:
     - name: gpu-operator
       path: system/gpu-operator
+      libraries: ["cozy-lib"]
       valuesFiles:
       - values.yaml
       - values-passthrough.yaml
@@ -26,9 +30,13 @@ spec:
   - name: vgpu
     dependsOn:
     - cozystack.networking
+    libraries:
+    - name: cozy-lib
+      path: library/cozy-lib
     components:
     - name: gpu-operator
       path: system/gpu-operator
+      libraries: ["cozy-lib"]
       valuesFiles:
       - values.yaml
       - values-vgpu.yaml
@@ -39,9 +47,13 @@ spec:
   - name: container
     dependsOn:
     - cozystack.networking
+    libraries:
+    - name: cozy-lib
+      path: library/cozy-lib
     components:
     - name: gpu-operator
       path: system/gpu-operator
+      libraries: ["cozy-lib"]
       valuesFiles:
       - values.yaml
       - values-container.yaml

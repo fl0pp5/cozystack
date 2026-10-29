@@ -99,6 +99,13 @@ spec:
   {{- $defaults := fromYaml (include "cozystack.defaultGpuOperatorValues" .) }}
   {{- $overrides := deepCopy (default (dict) .Values.addons.gpuOperator.valuesOverride) }}
   {{- $merged := mergeOverwrite (default (dict) $defaults) $overrides }}
+  {{- /* The operator starts every GPU component from a triple in its
+  ClusterPolicy, which the post-renderer above does not see; the chart's
+  patched template renders those triples through the image override table,
+  which reaches the subchart under its own key. */}}
+  {{- with index (.Values._cluster | default dict) "image-overrides" }}
+  {{-   $_ := set $merged "gpu-operator" (mergeOverwrite (get $merged "gpu-operator" | default dict) (dict "cozystackImageOverrides" .)) }}
+  {{- end }}
   {{- if $merged }}
   values:
     {{- toYaml $merged | nindent 4 }}

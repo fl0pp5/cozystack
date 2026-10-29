@@ -104,6 +104,16 @@ extract() {
         add "${ref#*=}" "$chart" 3
       done < <(yq 'select(.kind == "Deployment" and .metadata.name == "strimzi-cluster-operator") | .spec.template.spec.containers[0].env[] | select(.name | test("^STRIMZI_(DEFAULT_.*_IMAGE|DEFAULT_MAVEN_BUILDER|KAFKA_.*IMAGES)$")) | .value' "$out" | tr -s ' \n' '\n')
       ;;
+    system/gpu-operator)
+      # Every repository/image/version triple of the ClusterPolicy; a version
+      # starting with sha256: is a digest. The operator appends the node's OS
+      # to a driver tag itself.
+      while read -r ref; do
+        case "$ref" in ""|---|null) continue ;; esac
+        add "$ref" "$chart" 3
+      done < <(yq 'select(.kind == "ClusterPolicy") | .. | select(tag == "!!map" and has("repository") and has("image") and .repository != null and .repository != "") | .repository + "/" + .image + "\t" + .version' "$out" \
+               | awk -F'\t' '{print $1 ($2 ~ /^sha256:/ ? "@" : ":") $2}')
+      ;;
     system/kubeovn)
       while read -r ref; do
         add "$ref" "$chart" 3
@@ -144,7 +154,7 @@ done
 for chart in system/mariadb-operator system/etcd-operator system/monitoring-agents \
     system/capi-providers-core system/capi-providers-infraprovider system/cert-manager system/foundationdb-operator \
     system/kubeovn system/keycloak system/monitoring system/seaweedfs-db system/kubevirt-operator \
-    system/piraeus-operator system/kafka-operator; do
+    system/piraeus-operator system/kafka-operator system/gpu-operator; do
   render "$chart"
 done
 # apps/harbor runs Harbor on a CloudNativePG database and a RedisFailover of

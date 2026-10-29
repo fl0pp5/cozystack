@@ -1,3 +1,6 @@
+{{- $values := deepCopy .Values }}
+{{- include "gpu-operator.cozystackImageValues" (list $values .) }}
+{{- with dict "Values" $values "Chart" .Chart "Release" .Release "Capabilities" .Capabilities "Template" .Template "Files" .Files "Subcharts" .Subcharts -}}
 {{- if .Values.driver.enabled }}
 {{- if and .Values.driver.nvidiaDriverCRD.enabled .Values.driver.nvidiaDriverCRD.deployDefaultCR }}
 apiVersion: nvidia.com/v1alpha1
@@ -127,5 +130,6 @@ spec:
     args: {{ toYaml .Values.gdrcopy.args | nindent 6 }}
     {{- end  }}
   {{- end }}
+{{- end }}
 {{- end }}
 {{- end }}

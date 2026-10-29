@@ -60,6 +60,7 @@ spec:
           path: system/cilium
         - name: kubernetes-gpu-operator
           path: system/gpu-operator
+          libraries: ["cozy-lib"]
         - name: kubernetes-hami
           path: system/hami
         - name: kubernetes-vertical-pod-autoscaler

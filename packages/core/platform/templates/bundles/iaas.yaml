@@ -209,6 +209,17 @@
 {{- $_ := set $gpuOperatorComponents "gpu-operator" (dict "values" (dict "gpu-operator" $gpuOperatorOverrides)) -}}
 {{- end -}}
 {{- end -}}
+{{- /* The operator starts every GPU component from a repository/image/version
+       triple in its ClusterPolicy, out of the post-renderer's reach;
+       packages/system/gpu-operator/patches/image-overrides.diff renders those
+       triples through the cozy-lib helpers. A subchart does not see _cluster,
+       so the table reaches it under its own key, beside the vGPU values
+       above, and only when there is one. */ -}}
+{{- with include "cozystack.platform.imageOverrides" $ | fromYamlArray -}}
+{{- $gpuOperatorValues := dig "gpu-operator" "values" "gpu-operator" (dict) $gpuOperatorComponents -}}
+{{- $_ := set $gpuOperatorValues "cozystackImageOverrides" . -}}
+{{- $_ := set $gpuOperatorComponents "gpu-operator" (dict "values" (dict "gpu-operator" $gpuOperatorValues)) -}}
+{{- end -}}
 {{- if $gpuEnabled }}
 {{include "cozystack.platform.package" (list "cozystack.gpu-operator" $gpuVariant $ $gpuOperatorComponents) }}
 {{- end }}

@@ -1,0 +1,65 @@
+suite: gpu-operator receives the image override table under its own key
+templates:
+  - templates/bundles/iaas.yaml
+release:
+  name: cozystack
+  namespace: cozy-system
+# The vendored gpu-operator chart is patched to render the ClusterPolicy
+# triples through the cozy-lib helpers. As a subchart it does not see
+# _cluster, so the platform hands it the table under
+# gpu-operator.cozystackImageOverrides, beside the vGPU values it already
+# passes, and hands it nothing without a table.
+set:
+  _images: []
+  bundles:
+    system:
+      enabled: true
+      variant: isp-full
+    iaas:
+      enabled: true
+    enabledPackages:
+      - cozystack.gpu-operator
+tests:
+  - it: passes no values without a table
+    documentSelector: &gpu
+      path: metadata.name
+      value: cozystack.gpu-operator
+    asserts:
+      - notExists:
+          path: spec.components
+
+  - it: passes the table to the subchart
+    set:
+      registries:
+        imageOverrides:
+          - name: nvcr.io/nvidia/k8s-device-plugin
+            newName: registry.example.org/os/k8s-device-plugin
+    documentSelector: *gpu
+    asserts:
+      - equal:
+          path: spec.components.gpu-operator.values.gpu-operator.cozystackImageOverrides
+          value:
+            - name: nvcr.io/nvidia/k8s-device-plugin
+              newName: registry.example.org/os/k8s-device-plugin
+
+  - it: keeps the vGPU values beside the table
+    set:
+      bundles:
+        iaas:
+          enabled: true
+          gpuOperatorVariant: vgpu
+      gpu:
+        vgpuDeviceManager:
+          enabled: true
+      registries:
+        imageOverrides:
+          - name: nvcr.io/nvidia/k8s-device-plugin
+            newName: registry.example.org/os/k8s-device-plugin
+    documentSelector: *gpu
+    asserts:
+      - equal:
+          path: spec.components.gpu-operator.values.gpu-operator.vgpuDeviceManager.enabled
+          value: true
+      - equal:
+          path: spec.components.gpu-operator.values.gpu-operator.cozystackImageOverrides[0].name
+          value: nvcr.io/nvidia/k8s-device-plugin

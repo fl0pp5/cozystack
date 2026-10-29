@@ -1,3 +1,6 @@
+{{- $values := deepCopy .Values }}
+{{- include "gpu-operator.cozystackImageValues" (list $values .) }}
+{{- with dict "Values" $values "Chart" .Chart "Release" .Release "Capabilities" .Capabilities "Template" .Template "Files" .Files "Subcharts" .Subcharts -}}
 apiVersion: nvidia.com/v1
 kind: ClusterPolicy
 metadata:
@@ -794,3 +797,4 @@ spec:
     {{- if .Values.kataSandboxDevicePlugin.hostNetwork }}
     hostNetwork: {{ .Values.kataSandboxDevicePlugin.hostNetwork }}
     {{- end }}
+{{- end }}

@@ -1,0 +1,38 @@
+suite: tenant gpu-operator receives the image override table
+# The gpu-operator chart renders the ClusterPolicy triples of the tenant
+# cluster through the image override table, where the post-renderer does not
+# reach. The cozystack-values Secret stays in the management cluster, so the
+# release passes the table in the subchart's values, and nothing without one.
+templates:
+  - templates/helmreleases/gpu-operator.yaml
+values:
+  - values-ci.yaml
+set:
+  addons:
+    gpuOperator:
+      enabled: true
+      valuesOverride: {}
+tests:
+  - it: passes no table without one
+    asserts:
+      - notExists:
+          path: spec.values.gpu-operator.cozystackImageOverrides
+
+  - it: passes the table beside the values the chart already sets
+    set:
+      _cluster:
+        cluster-domain: cozy.local
+        image-overrides:
+          - name: nvcr.io/nvidia/k8s-device-plugin
+            match: {tag: v0.19.0}
+            newName: registry.example.org/os/k8s-device-plugin
+    asserts:
+      - equal:
+          path: spec.values.gpu-operator.cozystackImageOverrides
+          value:
+            - name: nvcr.io/nvidia/k8s-device-plugin
+              match: {tag: v0.19.0}
+              newName: registry.example.org/os/k8s-device-plugin
+      - equal:
+          path: spec.values.gpu-operator.driver.enabled
+          value: false

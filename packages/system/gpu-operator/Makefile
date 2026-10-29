@@ -18,3 +18,12 @@ update:
 	helm repo add nvidia https://helm.ngc.nvidia.com/nvidia
 	helm repo update nvidia
 	helm pull nvidia/gpu-operator --untar --untardir charts --version v26.3.1
+	# The operator starts every GPU component from a repository/image/version
+	# triple in its ClusterPolicy (and NVIDIADriver), out of the
+	# post-renderer's reach, so the platform's image override table reaches
+	# them through this patch, which renders the two templates with a copy of
+	# the values whose triples templates/_cozystack_image_values.tpl rewrites.
+	patch --no-backup-if-mismatch -p4 < patches/image-overrides.diff
+	# cozy-lib is a link into the tree rather than a vendored chart, and the
+	# rm -rf above took it with the rest of charts/.
+	ln -sfn ../../../library/cozy-lib charts/cozy-lib

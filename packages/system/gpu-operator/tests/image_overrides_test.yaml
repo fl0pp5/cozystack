@@ -1,0 +1,79 @@
+suite: GPU operator components take the images the image override table gives
+# The operator starts every GPU component from a repository/image/version
+# triple in the ClusterPolicy (or NVIDIADriver), out of the post-renderer's
+# reach. patches/image-overrides.diff renders both templates with a copy of
+# the values in which templates/_cozystack_image_values.tpl rewrites the
+# triples the table changes, the table coming under
+# gpu-operator.cozystackImageOverrides.
+release:
+  name: gpu-operator
+  namespace: cozy-gpu-operator
+templates:
+  - charts/gpu-operator/templates/clusterpolicy.yaml
+  - charts/gpu-operator/templates/nvidiadriver.yaml
+tests:
+  - it: keeps the upstream triples without a table
+    template: charts/gpu-operator/templates/clusterpolicy.yaml
+    asserts:
+      - equal: {path: spec.devicePlugin.repository, value: nvcr.io/nvidia}
+      - equal: {path: spec.devicePlugin.image, value: k8s-device-plugin}
+      - equal: {path: spec.validator.repository, value: nvcr.io/nvidia}
+      - equal: {path: spec.validator.image, value: gpu-operator}
+      - equal: {path: spec.validator.version, value: v26.3.1}
+
+  - it: rewrites a renamed component and leaves the others
+    template: charts/gpu-operator/templates/clusterpolicy.yaml
+    set:
+      gpu-operator:
+        cozystackImageOverrides:
+          - name: nvcr.io/nvidia/k8s-device-plugin
+            newName: registry.example.org/os/k8s-device-plugin
+    asserts:
+      - equal: {path: spec.devicePlugin.repository, value: registry.example.org/os}
+      - equal: {path: spec.devicePlugin.image, value: k8s-device-plugin}
+      - equal: {path: spec.devicePlugin.version, value: v0.19.0}
+      - equal: {path: spec.toolkit.repository, value: nvcr.io/nvidia/k8s}
+
+  - it: pins a component without a version by the digest of a tag@digest result
+    template: charts/gpu-operator/templates/clusterpolicy.yaml
+    set:
+      gpu-operator:
+        cozystackImageOverrides:
+          - name: nvcr.io/nvidia/gpu-operator
+            match: {tag: v26.3.1}
+            newName: registry.example.org/os/gpu-operator
+            newTag: v26.3.1-os1
+            digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+    asserts:
+      # The operator reads a version starting with sha256: as a digest and
+      # builds repository/image@version, the image the tag would resolve to.
+      - equal: {path: spec.validator.repository, value: registry.example.org/os}
+      - equal: {path: spec.validator.image, value: gpu-operator}
+      - equal: {path: spec.validator.version, value: "sha256:1111111111111111111111111111111111111111111111111111111111111111"}
+      - equal: {path: spec.nodeStatusExporter.version, value: "sha256:1111111111111111111111111111111111111111111111111111111111111111"}
+
+  - it: leaves a version match names another version alone
+    template: charts/gpu-operator/templates/clusterpolicy.yaml
+    set:
+      gpu-operator:
+        cozystackImageOverrides:
+          - name: nvcr.io/nvidia/driver
+            match: {tag: "570.0.0"}
+            newName: registry.example.org/os/driver
+    asserts:
+      - equal: {path: spec.driver.repository, value: nvcr.io/nvidia}
+
+  - it: rewrites the driver triple of the NVIDIADriver as well
+    template: charts/gpu-operator/templates/nvidiadriver.yaml
+    set:
+      gpu-operator:
+        driver:
+          nvidiaDriverCRD:
+            enabled: true
+            deployDefaultCR: true
+        cozystackImageOverrides:
+          - name: nvcr.io/nvidia/driver
+            newName: registry.example.org/os/driver
+    asserts:
+      - equal: {path: spec.repository, value: registry.example.org/os}
+      - equal: {path: spec.image, value: driver}

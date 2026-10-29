@@ -1,0 +1,32 @@
+diff --git a/packages/system/gpu-operator/charts/gpu-operator/templates/clusterpolicy.yaml b/packages/system/gpu-operator/charts/gpu-operator/templates/clusterpolicy.yaml
+index 6e5c6a9c6..e698b41a1 100644
+--- a/packages/system/gpu-operator/charts/gpu-operator/templates/clusterpolicy.yaml
++++ b/packages/system/gpu-operator/charts/gpu-operator/templates/clusterpolicy.yaml
+@@ -1,3 +1,6 @@
++{{- $values := deepCopy .Values }}
++{{- include "gpu-operator.cozystackImageValues" (list $values .) }}
++{{- with dict "Values" $values "Chart" .Chart "Release" .Release "Capabilities" .Capabilities "Template" .Template "Files" .Files "Subcharts" .Subcharts -}}
+ apiVersion: nvidia.com/v1
+ kind: ClusterPolicy
+ metadata:
+@@ -794,3 +797,4 @@ spec:
+     {{- if .Values.kataSandboxDevicePlugin.hostNetwork }}
+     hostNetwork: {{ .Values.kataSandboxDevicePlugin.hostNetwork }}
+     {{- end }}
++{{- end }}
+diff --git a/packages/system/gpu-operator/charts/gpu-operator/templates/nvidiadriver.yaml b/packages/system/gpu-operator/charts/gpu-operator/templates/nvidiadriver.yaml
+index 1a059a490..42d7a10fa 100644
+--- a/packages/system/gpu-operator/charts/gpu-operator/templates/nvidiadriver.yaml
++++ b/packages/system/gpu-operator/charts/gpu-operator/templates/nvidiadriver.yaml
+@@ -1,3 +1,6 @@
++{{- $values := deepCopy .Values }}
++{{- include "gpu-operator.cozystackImageValues" (list $values .) }}
++{{- with dict "Values" $values "Chart" .Chart "Release" .Release "Capabilities" .Capabilities "Template" .Template "Files" .Files "Subcharts" .Subcharts -}}
+ {{- if .Values.driver.enabled }}
+ {{- if and .Values.driver.nvidiaDriverCRD.enabled .Values.driver.nvidiaDriverCRD.deployDefaultCR }}
+ apiVersion: nvidia.com/v1alpha1
+@@ -129,3 +132,4 @@ spec:
+   {{- end }}
+ {{- end }}
+ {{- end }}
++{{- end }}
