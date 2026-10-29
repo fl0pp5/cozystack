@@ -86,6 +86,9 @@ spec:
   - name: kubeovn-cilium
     dependsOn:
     - cozystack.gateway-api-crds
+    libraries:
+    - name: cozy-lib
+      path: library/cozy-lib
     components:
     - name: cilium
       path: system/cilium
@@ -108,6 +111,7 @@ spec:
         - cilium
     - name: kubeovn
       path: system/kubeovn
+      libraries: ["cozy-lib"]
       install:
         privileged: true
         namespace: cozy-kubeovn
@@ -118,6 +122,9 @@ spec:
   - name: kubeovn-cilium-generic
     dependsOn:
     - cozystack.gateway-api-crds
+    libraries:
+    - name: cozy-lib
+      path: library/cozy-lib
     components:
     - name: cilium
       path: system/cilium
@@ -140,6 +147,7 @@ spec:
         - cilium
     - name: kubeovn
       path: system/kubeovn
+      libraries: ["cozy-lib"]
       install:
         privileged: true
         namespace: cozy-kubeovn

@@ -8,7 +8,7 @@ metadata:
     kubernetes.io/description: |
       kube-ovn vpc-nat common config
 data:
-  image: {{ .Values.global.registry.address }}/{{ .Values.global.images.natgateway.repository }}:{{ or .Values.global.images.natgateway.tag .Values.global.images.kubeovn.tag }}
+  image: {{ include "cozy-lib.image" (list (printf "%s/%s:%s" .Values.global.registry.address .Values.global.images.natgateway.repository (or .Values.global.images.natgateway.tag .Values.global.images.kubeovn.tag)) $) }}
 
 ---
 kind: ConfigMap

@@ -1,0 +1,84 @@
+suite: kube-ovn copies of images follow the image override table
+# kube-ovn-controller starts VPC egress gateway pods from its --image and VPC
+# NAT gateway pods from the image in ovn-vpc-nat-config; the post-renderer
+# reaches neither. patches/image-overrides.diff passes them through the
+# cozy-lib helpers, which read the table the platform hands this subchart under
+# kube-ovn.cozystackImageOverrides. Both are built from one registry.address,
+# so the table, not that value, is what can move them to different registries.
+release:
+  name: kubeovn
+  namespace: cozy-kubeovn
+tests:
+  - it: renders the controller's own image without a table
+    template: charts/kube-ovn/templates/controller-deploy.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --image=ghcr.io/cozystack/cozystack/kubeovn:v1.15.26@sha256:741299cbd0081a786a6b60c460fa3156b3a42a38141c559dd8ac031f50c5504f
+
+  - it: renders the NAT gateway image without a table
+    template: charts/kube-ovn/templates/vpc-nat-config.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: data.image
+          value: ghcr.io/cozystack/cozystack/vpc-nat-gateway:v1.15.26
+
+  - it: gives the controller the image its containers are renamed to
+    template: charts/kube-ovn/templates/controller-deploy.yaml
+    set:
+      kube-ovn:
+        cozystackImageOverrides:
+          - name: ghcr.io/cozystack/cozystack/kubeovn
+            newName: registry.example.org/os/kube-ovn
+            newTag: v1.15.26-os1
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --image=registry.example.org/os/kube-ovn:v1.15.26-os1
+      # The post-renderer, not the patch, rewrites the containers.
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/cozystack/cozystack/kubeovn:v1.15.26@sha256:741299cbd0081a786a6b60c460fa3156b3a42a38141c559dd8ac031f50c5504f
+
+  - it: moves the NAT gateway to another registry than the controller
+    template: charts/kube-ovn/templates/vpc-nat-config.yaml
+    documentIndex: 0
+    set:
+      kube-ovn:
+        cozystackImageOverrides:
+          - name: ghcr.io/cozystack/cozystack/kubeovn
+            newName: registry.example.org/os/kube-ovn
+          - name: ghcr.io/cozystack/cozystack/vpc-nat-gateway
+            match: {tag: v1.15.26}
+            newName: docker.io/kubeovn/vpc-nat-gateway
+    asserts:
+      - equal:
+          path: data.image
+          value: docker.io/kubeovn/vpc-nat-gateway:v1.15.26
+
+  - it: leaves the NAT gateway alone when match names another version
+    template: charts/kube-ovn/templates/vpc-nat-config.yaml
+    documentIndex: 0
+    set:
+      kube-ovn:
+        cozystackImageOverrides:
+          - name: ghcr.io/cozystack/cozystack/vpc-nat-gateway
+            match: {tag: v1.15.25}
+            newName: docker.io/kubeovn/vpc-nat-gateway
+    asserts:
+      - equal:
+          path: data.image
+          value: ghcr.io/cozystack/cozystack/vpc-nat-gateway:v1.15.26
+
+  - it: pins the controller by digest, as kustomize does for its containers
+    template: charts/kube-ovn/templates/controller-deploy.yaml
+    set:
+      kube-ovn:
+        cozystackImageOverrides:
+          - name: ghcr.io/cozystack/cozystack/kubeovn
+            digest: sha256:0000000000000000000000000000000000000000000000000000000000000001
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --image=ghcr.io/cozystack/cozystack/kubeovn@sha256:0000000000000000000000000000000000000000000000000000000000000001

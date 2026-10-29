@@ -77,6 +77,15 @@ images:
 - ref: ghcr.io/cloudnative-pg/postgresql:18.1
   chart: apps/postgres
   route: 1
+- ref: ghcr.io/cozystack/cozystack/kubeovn:v1.15.26@sha256:741299cbd0081a786a6b60c460fa3156b3a42a38141c559dd8ac031f50c5504f
+  chart: system/kubeovn
+  route: 0
+- ref: ghcr.io/cozystack/cozystack/kubeovn:v1.15.26@sha256:741299cbd0081a786a6b60c460fa3156b3a42a38141c559dd8ac031f50c5504f
+  chart: system/kubeovn
+  route: 3
+- ref: ghcr.io/cozystack/cozystack/vpc-nat-gateway:v1.15.26
+  chart: system/kubeovn
+  route: 3
 - ref: ghcr.io/cozystack/etcd-operator:v0.5.6
   chart: system/etcd-operator
   route: 1

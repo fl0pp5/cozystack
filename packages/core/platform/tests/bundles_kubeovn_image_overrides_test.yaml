@@ -1,0 +1,71 @@
+suite: kube-ovn receives the image override table under its own key
+templates:
+  - templates/bundles/system.yaml
+release:
+  name: cozystack
+  namespace: cozy-system
+# The vendored kube-ovn chart is patched to pass the images its controller
+# starts gateway pods from through the cozy-lib helpers. As a subchart it does
+# not see _cluster, so the platform hands it the table under
+# kube-ovn.cozystackImageOverrides, as written (match included), on both
+# variants that run kube-ovn, and hands it nothing without a table.
+set:
+  _images: []
+tests:
+  - it: passes no table without one
+    set:
+      bundles:
+        system:
+          enabled: true
+          variant: isp-full
+    documentSelector:
+      path: metadata.name
+      value: cozystack.networking
+    asserts:
+      - notExists:
+          path: spec.components.kubeovn.values.kube-ovn.cozystackImageOverrides
+
+  - it: passes the table to the subchart on isp-full
+    set:
+      bundles:
+        system:
+          enabled: true
+          variant: isp-full
+      registries:
+        imageOverrides:
+          - name: ghcr.io/cozystack/cozystack/vpc-nat-gateway
+            match: {tag: v1.15.26}
+            newName: docker.io/kubeovn/vpc-nat-gateway
+    documentSelector:
+      path: metadata.name
+      value: cozystack.networking
+    asserts:
+      - equal:
+          path: spec.components.kubeovn.values.kube-ovn.cozystackImageOverrides
+          value:
+            - name: ghcr.io/cozystack/cozystack/vpc-nat-gateway
+              match: {tag: v1.15.26}
+              newName: docker.io/kubeovn/vpc-nat-gateway
+      # The values the platform already sets stay beside it.
+      - exists:
+          path: spec.components.kubeovn.values.kube-ovn.ipv4.POD_CIDR
+
+  - it: passes the table to the subchart on isp-full-generic
+    set:
+      bundles:
+        system:
+          enabled: true
+          variant: isp-full-generic
+      registries:
+        imageOverrides:
+          - name: ghcr.io/cozystack/cozystack/kubeovn
+            newName: registry.example.org/os/kube-ovn
+    documentSelector:
+      path: metadata.name
+      value: cozystack.networking
+    asserts:
+      - equal:
+          path: spec.components.kubeovn.values.kube-ovn.cozystackImageOverrides
+          value:
+            - name: ghcr.io/cozystack/cozystack/kubeovn
+              newName: registry.example.org/os/kube-ovn

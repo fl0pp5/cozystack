@@ -1,0 +1,26 @@
+diff --git a/packages/system/kubeovn/charts/kube-ovn/templates/controller-deploy.yaml b/packages/system/kubeovn/charts/kube-ovn/templates/controller-deploy.yaml
+index 86f98f8a7..872b13402 100644
+--- a/packages/system/kubeovn/charts/kube-ovn/templates/controller-deploy.yaml
++++ b/packages/system/kubeovn/charts/kube-ovn/templates/controller-deploy.yaml
+@@ -166,7 +166,7 @@ spec:
+           - --ovsdb-inactivity-timeout={{- .Values.func.OVSDB_INACTIVITY_TIMEOUT }}
+           - --enable-live-migration-optimize={{- .Values.func.ENABLE_LIVE_MIGRATION_OPTIMIZE }}
+           - --enable-ovn-lb-prefer-local={{- .Values.func.ENABLE_OVN_LB_PREFER_LOCAL }}
+-          - --image={{ .Values.global.registry.address }}/{{ .Values.global.images.kubeovn.repository }}:{{ .Values.global.images.kubeovn.tag }}
++          - --image={{ include "cozy-lib.image" (list (printf "%s/%s:%s" .Values.global.registry.address .Values.global.images.kubeovn.repository .Values.global.images.kubeovn.tag) $) }}
+           - --skip-conntrack-dst-cidrs={{- .Values.networking.SKIP_CONNTRACK_DST_CIDRS }}
+           - --non-primary-cni-mode={{- .Values.cni_conf.NON_PRIMARY_CNI }}
+           securityContext:
+diff --git a/packages/system/kubeovn/charts/kube-ovn/templates/vpc-nat-config.yaml b/packages/system/kubeovn/charts/kube-ovn/templates/vpc-nat-config.yaml
+index b0b7dc511..9e15345c5 100644
+--- a/packages/system/kubeovn/charts/kube-ovn/templates/vpc-nat-config.yaml
++++ b/packages/system/kubeovn/charts/kube-ovn/templates/vpc-nat-config.yaml
+@@ -8,7 +8,7 @@ metadata:
+     kubernetes.io/description: |
+       kube-ovn vpc-nat common config
+ data:
+-  image: {{ .Values.global.registry.address }}/{{ .Values.global.images.natgateway.repository }}:{{ or .Values.global.images.natgateway.tag .Values.global.images.kubeovn.tag }}
++  image: {{ include "cozy-lib.image" (list (printf "%s/%s:%s" .Values.global.registry.address .Values.global.images.natgateway.repository (or .Values.global.images.natgateway.tag .Values.global.images.kubeovn.tag)) $) }}
+ 
+ ---
+ kind: ConfigMap

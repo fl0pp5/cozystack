@@ -79,6 +79,12 @@ extract() {
         add "$ref" "$chart" 3
       done < <(yq 'select(.kind == "ConfigMap" and .metadata.name == "mariadb-operator-env") | .data | to_entries[] | select(.key | test("^(RELATED_IMAGE_|MARIADB_OPERATOR_IMAGE$)")) | .value' "$out")
       ;;
+    system/kubeovn)
+      while read -r ref; do
+        add "$ref" "$chart" 3
+      done < <(yq 'select(.kind == "Deployment" and .metadata.name == "kube-ovn-controller") | .spec.template.spec.containers[].args[] | select(test("^--image=")) | sub("^--image=", "")' "$out"
+               yq 'select(.kind == "ConfigMap" and .metadata.name == "ovn-vpc-nat-config") | .data.image' "$out")
+      ;;
   esac
 }
 
@@ -92,7 +98,8 @@ for version in $(yq 'keys | .[]' "$ROOT/packages/apps/mariadb/files/versions.yam
   render apps/mariadb --set _namespace.host=example.org --set "version=$version"
 done
 for chart in system/mariadb-operator system/etcd-operator system/monitoring-agents \
-    system/capi-providers-core system/cert-manager system/foundationdb-operator; do
+    system/capi-providers-core system/cert-manager system/foundationdb-operator \
+    system/kubeovn; do
   render "$chart"
 done
 

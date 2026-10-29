@@ -17,6 +17,14 @@ update:
 	# Teach the CNI DaemonSet to honour an explicit MTU: upstream derives it from
 	# the node interface, which is wrong when the underlay is encapsulated.
 	patch --no-backup-if-mismatch -p4 < patches/mtu.diff
+	# The controller starts VPC egress gateway pods from its --image and VPC NAT
+	# gateway pods from the image in ovn-vpc-nat-config, so the platform's
+	# image override table must reach both here, through the cozy-lib the
+	# wrapper vendors; the post-renderer sees only container images.
+	patch --no-backup-if-mismatch -p4 < patches/image-overrides.diff
+	# cozy-lib is a link into the tree rather than a vendored chart, and the
+	# rm -rf above took it with the rest of charts/.
+	ln -sfn ../../../library/cozy-lib charts/cozy-lib
 	version=$$(awk '$$1 == "appVersion:" {print $$2}' charts/kube-ovn/Chart.yaml) && \
 	$(SED_INPLACE) -e "s/ARG VERSION=.*/ARG VERSION=$${version}/" images/kubeovn/Dockerfile && \
 	$(SED_INPLACE) -e "s/ARG TAG=.*/ARG TAG=v$${version}/" images/kubeovn/Dockerfile

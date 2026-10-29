@@ -38,6 +38,14 @@
 {{- $_ := set $kubeovnDict "networking" (dict "EXCLUDE_IPS" (include "cozystack.platform.ciliumPoolRange" .Values.networking.podCIDR)) -}}
 {{- $_ := set $cilium "ipam" (dict "operator" (dict "clusterPoolIPv4PodCIDRList" (list (include "cozystack.platform.ciliumPool" .Values.networking.podCIDR)))) -}}
 {{- end -}}
+{{- /* kube-ovn-controller starts VPC egress and NAT gateway pods from
+       references its chart renders into an argument and a ConfigMap;
+       packages/system/kubeovn/patches/image-overrides.diff passes them
+       through the cozy-lib helpers. A subchart does not see _cluster, so the
+       table reaches it under its own key, and only when there is one. */ -}}
+{{- with include "cozystack.platform.imageOverrides" $ | fromYamlArray -}}
+{{- $_ := set $kubeovnDict "cozystackImageOverrides" . -}}
+{{- end -}}
 {{- $kubeovnValues := dict "kube-ovn" $kubeovnDict -}}
 {{- $_ := set $networkingComponents "kubeovn" (dict "values" $kubeovnValues) -}}
 {{- $ciliumValues := dict "cilium" $cilium -}}
@@ -132,6 +140,10 @@
 {{- if not (include "cozystack.platform.slim" $) -}}
 {{- $_ := set $kubeovnDict "networking" (dict "EXCLUDE_IPS" (include "cozystack.platform.ciliumPoolRange" $podCIDR)) -}}
 {{- $_ := set $cilium "ipam" (dict "operator" (dict "clusterPoolIPv4PodCIDRList" (list (include "cozystack.platform.ciliumPool" $podCIDR)))) -}}
+{{- end -}}
+{{- /* The image override table, as in the isp-full branch above. */ -}}
+{{- with include "cozystack.platform.imageOverrides" $ | fromYamlArray -}}
+{{- $_ := set $kubeovnDict "cozystackImageOverrides" . -}}
 {{- end -}}
 {{- $kubeovnValues := dict "kube-ovn" $kubeovnDict -}}
 {{- $_ := set $networkingComponents "kubeovn" (dict "values" $kubeovnValues) -}}
