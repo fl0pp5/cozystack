@@ -22,6 +22,12 @@
 # Proof of concept: it covers the charts below, each at every version it
 # offers, and its output is committed by hand. The proposal generates the
 # list for every chart when the packages artifact is built.
+#
+# --coverage checks those charts instead (the CI guard of the proposal): each
+# render is repeated with a table that renames every image the first one
+# found, the way the platform hands it over, and any image left under its old
+# name outside a container, which the post-renderer rewrites, is reported.
+# hack/image-overrides-coverage.allowlist holds the known exceptions.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -123,43 +129,118 @@ extract() {
   esac
 }
 
-for version in $(yq 'keys | .[]' "$ROOT/packages/apps/postgres/files/versions.yaml"); do
-  render apps/postgres --set-json '_cluster.scheduling={}' --set _namespace.host=example.org --set "version=$version"
-done
-for version in $(yq 'keys | .[]' "$ROOT/packages/apps/postgres/files/postgis-versions.yaml"); do
-  render apps/postgres --set-json '_cluster.scheduling={}' --set _namespace.host=example.org --set "version=$version" --set flavor=postgis
-done
-for version in $(yq 'keys | .[]' "$ROOT/packages/apps/mariadb/files/versions.yaml"); do
-  render apps/mariadb --set _namespace.host=example.org --set "version=$version"
-done
-# The FoundationDB operator picks every image it runs; the chart names one only
-# when the table changes it, which the probe registry always does. The
-# in-chart backup runs the unified image whatever the cluster runs.
-for version in $(yq 'keys | .[]' "$ROOT/packages/apps/foundationdb/files/versions.yaml"); do
-  for type in split unified; do
-    render apps/foundationdb --set-string _cluster.cluster-domain=cozy.local --set "version=$version" \
-      --set "imageType=$type" --set backup.enabled=true --set backup.s3.bucket=list \
-      --set backup.s3.credentials.accessKeyId=list --set backup.s3.credentials.secretAccessKey=list
+# renders: call $EACH once per render, with the chart and its helm arguments.
+renders() {
+  for version in $(yq 'keys | .[]' "$ROOT/packages/apps/postgres/files/versions.yaml"); do
+    "$EACH" apps/postgres --set-json '_cluster.scheduling={}' --set _namespace.host=example.org --set "version=$version"
   done
-done
-for version in $(yq 'keys | .[]' "$ROOT/packages/apps/redis/files/versions.yaml"); do
-  render apps/redis --set _namespace.host=example.org --set "version=$version"
-done
-# The kubelet of tenant workers is tagged with the Kubernetes version of the
-# pool.
-for version in $(yq 'keys | .[]' "$ROOT/packages/apps/kubernetes-nodes/files/versions.yaml"); do
-  RELEASE=kubernetes-nodes-list-pool render apps/kubernetes-nodes --set-string cluster=list --set resources.cpu=2 --set resources.memory=4Gi \
-    --set-string _cluster.cluster-domain=cozy.local --set "version=$version"
-done
-for chart in system/mariadb-operator system/etcd-operator system/monitoring-agents \
-    system/capi-providers-core system/capi-providers-infraprovider system/cert-manager system/foundationdb-operator \
-    system/kubeovn system/keycloak system/monitoring system/seaweedfs-db system/kubevirt-operator \
-    system/piraeus-operator system/kafka-operator system/gpu-operator; do
-  render "$chart"
-done
-# apps/harbor runs Harbor on a CloudNativePG database and a RedisFailover of
-# its own, never on the images of the chart's internal ones.
-render system/harbor --set harbor.database.type=external --set harbor.redis.type=external
+  for version in $(yq 'keys | .[]' "$ROOT/packages/apps/postgres/files/postgis-versions.yaml"); do
+    "$EACH" apps/postgres --set-json '_cluster.scheduling={}' --set _namespace.host=example.org --set "version=$version" --set flavor=postgis
+  done
+  for version in $(yq 'keys | .[]' "$ROOT/packages/apps/mariadb/files/versions.yaml"); do
+    "$EACH" apps/mariadb --set _namespace.host=example.org --set "version=$version"
+  done
+  # The FoundationDB operator picks every image it runs; the chart names one only
+  # when the table changes it, which the probe registry always does. The
+  # in-chart backup runs the unified image whatever the cluster runs.
+  for version in $(yq 'keys | .[]' "$ROOT/packages/apps/foundationdb/files/versions.yaml"); do
+    for type in split unified; do
+      "$EACH" apps/foundationdb --set-string _cluster.cluster-domain=cozy.local --set "version=$version" \
+        --set "imageType=$type" --set backup.enabled=true --set backup.s3.bucket=list \
+        --set backup.s3.credentials.accessKeyId=list --set backup.s3.credentials.secretAccessKey=list
+    done
+  done
+  for version in $(yq 'keys | .[]' "$ROOT/packages/apps/redis/files/versions.yaml"); do
+    "$EACH" apps/redis --set _namespace.host=example.org --set "version=$version"
+  done
+  # The kubelet of tenant workers is tagged with the Kubernetes version of the
+  # pool.
+  for version in $(yq 'keys | .[]' "$ROOT/packages/apps/kubernetes-nodes/files/versions.yaml"); do
+    RELEASE=kubernetes-nodes-list-pool "$EACH" apps/kubernetes-nodes --set-string cluster=list --set resources.cpu=2 --set resources.memory=4Gi \
+      --set-string _cluster.cluster-domain=cozy.local --set "version=$version"
+  done
+  for chart in system/mariadb-operator system/etcd-operator system/monitoring-agents \
+      system/capi-providers-core system/capi-providers-infraprovider system/cert-manager system/foundationdb-operator \
+      system/kubeovn system/keycloak system/monitoring system/seaweedfs-db system/kubevirt-operator \
+      system/piraeus-operator system/kafka-operator system/gpu-operator; do
+    "$EACH" "$chart"
+  done
+  # apps/harbor runs Harbor on a CloudNativePG database and a RedisFailover of
+  # its own, never on the images of the chart's internal ones.
+  "$EACH" system/harbor --set harbor.database.type=external --set harbor.redis.type=external
+}
+
+COVERAGE="$ROOT/hack/image-overrides-coverage.py"
+ALLOWLIST="$ROOT/hack/image-overrides-coverage.allowlist"
+SENTINEL=coverage.invalid
+COVERAGE_FAILED=0
+
+# coverage <chart> <helm args...>: render, rename every image found, render
+# again, and report what kept its name.
+coverage() {
+  local chart="$1" names="$TMP/names" table found
+  shift
+  : > "$TMP/refs"
+  render "$chart" "$@"
+  helm template "${RELEASE:-release}" "$ROOT/packages/$chart" --namespace tenant-x "$@" > "$TMP/default.yaml" 2>/dev/null
+  { cut -f1 "$TMP/refs"; python3 -I "$COVERAGE" refs "$TMP/default.yaml"; } \
+    | python3 -I "$COVERAGE" names /dev/stdin | sort -u > "$names"
+  table="$(python3 -I "$COVERAGE" table "$names")"
+  # What the platform passes beside _cluster: route 3 under the subchart's
+  # key, route 2 in parts (bundles/system.yaml for the solver image).
+  local -a extra=()
+  case "$chart" in
+    system/mariadb-operator) extra=(--set-json "mariadb-operator.cozystackImageOverrides=$table") ;;
+    system/kubeovn) extra=(--set-json "kube-ovn.cozystackImageOverrides=$table") ;;
+    system/piraeus-operator) extra=(--set-json "piraeus.cozystackImageOverrides=$table") ;;
+    system/kafka-operator) extra=(--set-json "strimzi-kafka-operator.cozystackImageOverrides=$table") ;;
+    system/gpu-operator) extra=(--set-json "gpu-operator.cozystackImageOverrides=$table") ;;
+    system/cert-manager) extra=(--set-string "cert-manager.acmesolver.image.repository=$SENTINEL/quay.io/jetstack/cert-manager-acmesolver") ;;
+  esac
+  if ! helm template "${RELEASE:-release}" "$ROOT/packages/$chart" --namespace tenant-x "$@" \
+      --set-json "_cluster.image-overrides=$table" "${extra[@]}" > "$TMP/table.yaml" 2>"$TMP/err"; then
+    echo "coverage: $chart did not render with the table: $(cat "$TMP/err")" >&2
+    COVERAGE_FAILED=1
+    return 0
+  fi
+  : > "$TMP/refs"
+  case "$chart" in
+    system/piraeus-operator)
+      # image-config keeps the defaults by design: the operator takes the
+      # RELATED_IMAGE_<component>_<image> env instead, so a default without
+      # its env is what kept its name.
+      local wanted
+      wanted="$(yq 'select(.kind == "ConfigMap" and (.metadata.name | test("-image-config$"))) | .data | to_entries[] | select(.key | test("^0_")) | .value' "$TMP/table.yaml" \
+        | yq ea '. as $c | $c.components | to_entries[] | .key as $k | .value as $v | ([$v.image] + [($v.match // [])[] | .image])[] | select(. != null) | "RELATED_IMAGE_" + $k + "_" + . + " " + $c.base + "/" + . + ":" + $v.tag' | sort -u)"
+      while read -r env ref; do
+        [ -n "$env" ] || continue
+        yq -e "select(.kind == \"Deployment\") | .spec.template.spec.containers[0].env[] | select(.name == \"$env\")" "$TMP/table.yaml" >/dev/null 2>&1 \
+          || add "$ref" "$chart" 3
+      done <<< "$wanted"
+      ;;
+    *) extract "$chart" "$TMP/table.yaml" ;;
+  esac
+  found="$(python3 -I "$COVERAGE" leftovers "$TMP/table.yaml" "$names" <(cut -f1 "$TMP/refs") "$chart" "$ALLOWLIST" "$TMP/used")"
+  if [ -n "$found" ]; then
+    printf '%s\n' "$found" | sed "s|^|$chart: |" >&2
+    COVERAGE_FAILED=1
+  fi
+}
+
+if [ "${1:-}" = --coverage ]; then
+  EACH=coverage
+  : > "$TMP/used"
+  renders
+  found="$(python3 -I "$COVERAGE" unused "$ALLOWLIST" "$TMP/used")"
+  if [ -n "$found" ]; then
+    printf 'allowlist entry that matched nothing: %s\n' "$found" >&2
+    COVERAGE_FAILED=1
+  fi
+  exit "$COVERAGE_FAILED"
+fi
+
+EACH=render
+renders
 
 cat <<'EOF'
 # Generated by hack/image-list.sh; do not edit. The release image list the
