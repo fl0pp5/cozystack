@@ -1,0 +1,66 @@
+suite: Redis images follow the image override table
+
+# The data pods, the Sentinels and the exporter take their images from the
+# RedisFailover, which the operator turns into pods; the post-renderer never
+# sees these fields. The chart renders them through cozy-lib.image, the data
+# pods and Sentinels from the one reference so they cannot drift apart.
+
+release:
+  name: my-redis
+  namespace: tenant-test
+
+set:
+  _cluster:
+    cluster-domain: cluster.local
+  _namespace:
+    host: example.com
+
+templates:
+  - templates/redisfailover.yaml
+
+tests:
+  - it: renders the upstream images without a table
+    set:
+      version: v8
+    documentSelector: &failover
+      path: kind
+      value: RedisFailover
+    asserts:
+      - equal: {path: spec.redis.image, value: "redis:8.4.0"}
+      - equal: {path: spec.sentinel.image, value: "redis:8.4.0"}
+      - equal:
+          path: spec.redis.exporter.image
+          value: oliver006/redis_exporter:v1.55.0@sha256:d82625bda93823fb40de881ffbb45b65aca772a39c30141387f92314c258da5d
+
+  - it: renames one Redis version for the data pods and the Sentinels
+    set:
+      version: v8
+      _cluster:
+        cluster-domain: cluster.local
+        image-overrides:
+          - name: redis
+            match: {tag: 8.4.0}
+            newName: registry.example.org/os/redis
+            newTag: 8.4.0-os1
+          - name: oliver006/redis_exporter
+            newName: registry.example.org/os/redis_exporter
+    documentSelector: *failover
+    asserts:
+      - equal: {path: spec.redis.image, value: "registry.example.org/os/redis:8.4.0-os1"}
+      - equal: {path: spec.sentinel.image, value: "registry.example.org/os/redis:8.4.0-os1"}
+      - equal:
+          path: spec.redis.exporter.image
+          value: registry.example.org/os/redis_exporter:v1.55.0@sha256:d82625bda93823fb40de881ffbb45b65aca772a39c30141387f92314c258da5d
+
+  - it: leaves another Redis version alone
+    set:
+      version: v7
+      _cluster:
+        cluster-domain: cluster.local
+        image-overrides:
+          - name: redis
+            match: {tag: 8.4.0}
+            newName: registry.example.org/os/redis
+    documentSelector: *failover
+    asserts:
+      - equal: {path: spec.redis.image, value: "redis:7.4.7"}

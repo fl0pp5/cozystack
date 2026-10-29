@@ -155,6 +155,9 @@ images:
 - ref: mariadb:11.8.5
   chart: apps/mariadb
   route: 1
+- ref: oliver006/redis_exporter:v1.55.0@sha256:d82625bda93823fb40de881ffbb45b65aca772a39c30141387f92314c258da5d
+  chart: apps/redis
+  route: 1
 - ref: prom/mysqld-exporter:v0.15.1
   chart: apps/mariadb
   route: 1
@@ -188,6 +191,12 @@ images:
 - ref: quay.io/prometheus/node-exporter:v1.9.0
   chart: system/monitoring-agents
   route: 0
+- ref: redis:7.4.7
+  chart: apps/redis
+  route: 1
+- ref: redis:8.4.0
+  chart: apps/redis
+  route: 1
 - ref: registry.k8s.io/cluster-api/cluster-api-controller:v1.10.1@sha256:a36a3047d23766f261153e0d73537f2866456284d382c0774dd05aa7f4310b75
   chart: system/capi-providers-core
   route: 1

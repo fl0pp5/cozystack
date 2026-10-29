@@ -98,6 +98,9 @@ done
 for version in $(yq 'keys | .[]' "$ROOT/packages/apps/mariadb/files/versions.yaml"); do
   render apps/mariadb --set _namespace.host=example.org --set "version=$version"
 done
+for version in $(yq 'keys | .[]' "$ROOT/packages/apps/redis/files/versions.yaml"); do
+  render apps/redis --set _namespace.host=example.org --set "version=$version"
+done
 # The kubelet of tenant workers is tagged with the Kubernetes version of the
 # pool.
 for version in $(yq 'keys | .[]' "$ROOT/packages/apps/kubernetes-nodes/files/versions.yaml"); do

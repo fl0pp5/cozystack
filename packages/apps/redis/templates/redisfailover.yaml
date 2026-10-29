@@ -1,5 +1,5 @@
 {{- /* One image for the data pods and the Sentinels, resolved once so they cannot drift apart. */}}
-{{- $redisImage := printf "redis:%s" (include "redis.versionMap" $) }}
+{{- $redisImage := include "cozy-lib.image" (list (printf "redis:%s" (include "redis.versionMap" $)) $) }}
 {{- $tlsEnabled := (include "redis.tls.enabled" .) | eq "true" -}}
 {{- /*
   A Sentinel holds only its configuration and failover state, so the Redis
@@ -91,7 +91,7 @@ spec:
     {{- end }}
     exporter:
       enabled: true
-      image: oliver006/redis_exporter:v1.55.0@sha256:d82625bda93823fb40de881ffbb45b65aca772a39c30141387f92314c258da5d
+      image: {{ include "cozy-lib.image" (list "oliver006/redis_exporter:v1.55.0@sha256:d82625bda93823fb40de881ffbb45b65aca772a39c30141387f92314c258da5d" $) }}
       args:
         - --web.telemetry-path
         - /metrics
