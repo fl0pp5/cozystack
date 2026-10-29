@@ -23,7 +23,17 @@
 {{- $mariadbOperatorComponents = dict "mariadb-operator" (dict "values" (dict "mariadb-operator" (dict "cozystackImageOverrides" .))) -}}
 {{- end }}
 {{include "cozystack.platform.package.full" (list "cozystack.mariadb-operator" "default" $ $mariadbOperatorComponents) }}
-{{include "cozystack.platform.package.full.default" (list "cozystack.kafka-operator" $) }}
+{{- /* Strimzi passes every image it deploys, each Kafka version of an
+       operand separately, from operator env the vendored chart renders
+       through one template; packages/system/kafka-operator/patches/
+       image-overrides.diff passes that template through the cozy-lib helpers.
+       The table reaches the subchart under its own key, and only when there
+       is one. */ -}}
+{{- $kafkaOperatorComponents := dict -}}
+{{- with include "cozystack.platform.imageOverrides" $ | fromYamlArray -}}
+{{- $kafkaOperatorComponents = dict "kafka-operator" (dict "values" (dict "strimzi-kafka-operator" (dict "cozystackImageOverrides" .))) -}}
+{{- end }}
+{{include "cozystack.platform.package.full" (list "cozystack.kafka-operator" "default" $ $kafkaOperatorComponents) }}
 {{include "cozystack.platform.package.full.default" (list "cozystack.clickhouse-operator" $) }}
 {{include "cozystack.platform.package.full.default" (list "cozystack.foundationdb-operator" $) }}
 {{include "cozystack.platform.package.full.default" (list "cozystack.rabbitmq-operator" $) }}

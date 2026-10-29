@@ -1,0 +1,61 @@
+suite: Strimzi deploys the images the image override table gives
+# The operator deploys every operand from its env, one reference per Kafka
+# version in the maps, and the post-renderer reaches only the operator's own
+# container. patches/image-overrides.diff passes strimzi.image, which renders
+# every one of them, through the cozy-lib helpers, which read the table the
+# platform hands this subchart under strimzi-kafka-operator.cozystackImageOverrides.
+release:
+  name: kafka-operator
+  namespace: cozy-kafka-operator
+templates:
+  - charts/strimzi-kafka-operator/templates/060-Deployment-strimzi-cluster-operator.yaml
+tests:
+  - it: renders the upstream references without a table
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: quay.io/strimzi/operator:0.45.1-rc1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: STRIMZI_DEFAULT_TOPIC_OPERATOR_IMAGE, value: "quay.io/strimzi/operator:0.45.1-rc1"}
+
+  - it: renames one Kafka version in every map, and leaves the others
+    set:
+      strimzi-kafka-operator:
+        cozystackImageOverrides:
+          - name: quay.io/strimzi/kafka
+            match: {tag: 0.45.1-rc1-kafka-3.9.1}
+            newName: registry.example.org/os/kafka
+            newTag: 0.45.1-rc1-kafka-3.9.1-os1
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name == "STRIMZI_KAFKA_IMAGES")].value
+          pattern: '(?m)^3\.9\.1=registry\.example\.org/os/kafka:0\.45\.1-rc1-kafka-3\.9\.1-os1$'
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name == "STRIMZI_KAFKA_IMAGES")].value
+          pattern: '(?m)^3\.9\.0=quay\.io/strimzi/kafka:0\.45\.1-rc1-kafka-3\.9\.0$'
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name == "STRIMZI_KAFKA_CONNECT_IMAGES")].value
+          pattern: '(?m)^3\.9\.1=registry\.example\.org/os/kafka:0\.45\.1-rc1-kafka-3\.9\.1-os1$'
+      # The exporter and Cruise Control default to the newest Kafka image.
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: STRIMZI_DEFAULT_KAFKA_EXPORTER_IMAGE, value: "registry.example.org/os/kafka:0.45.1-rc1-kafka-3.9.1-os1"}
+
+  - it: gives every copy of the operator image the same reference as its container
+    set:
+      strimzi-kafka-operator:
+        cozystackImageOverrides:
+          - name: quay.io/strimzi/operator
+            newName: registry.example.org/os/strimzi-operator
+            digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: registry.example.org/os/strimzi-operator@sha256:1111111111111111111111111111111111111111111111111111111111111111
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: STRIMZI_DEFAULT_KAFKA_INIT_IMAGE, value: "registry.example.org/os/strimzi-operator@sha256:1111111111111111111111111111111111111111111111111111111111111111"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: STRIMZI_DEFAULT_USER_OPERATOR_IMAGE, value: "registry.example.org/os/strimzi-operator@sha256:1111111111111111111111111111111111111111111111111111111111111111"}

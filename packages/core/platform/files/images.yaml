@@ -308,6 +308,33 @@ images:
 - ref: quay.io/prometheus/node-exporter:v1.9.0
   chart: system/monitoring-agents
   route: 0
+- ref: quay.io/strimzi/kafka:0.45.1-rc1-kafka-3.8.0
+  chart: system/kafka-operator
+  route: 3
+- ref: quay.io/strimzi/kafka:0.45.1-rc1-kafka-3.8.1
+  chart: system/kafka-operator
+  route: 3
+- ref: quay.io/strimzi/kafka:0.45.1-rc1-kafka-3.9.0
+  chart: system/kafka-operator
+  route: 3
+- ref: quay.io/strimzi/kafka:0.45.1-rc1-kafka-3.9.1
+  chart: system/kafka-operator
+  route: 3
+- ref: quay.io/strimzi/kafka-bridge:0.31.2
+  chart: system/kafka-operator
+  route: 3
+- ref: quay.io/strimzi/kaniko-executor:0.45.1-rc1
+  chart: system/kafka-operator
+  route: 3
+- ref: quay.io/strimzi/maven-builder:0.45.1-rc1
+  chart: system/kafka-operator
+  route: 3
+- ref: quay.io/strimzi/operator:0.45.1-rc1
+  chart: system/kafka-operator
+  route: 0
+- ref: quay.io/strimzi/operator:0.45.1-rc1
+  chart: system/kafka-operator
+  route: 3
 - ref: redis:7.4.7
   chart: apps/redis
   route: 1

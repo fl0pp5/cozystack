@@ -1,0 +1,44 @@
+suite: kafka-operator receives the image override table under its own key
+templates:
+  - templates/bundles/paas.yaml
+release:
+  name: cozystack
+  namespace: cozy-system
+# The vendored Strimzi chart is patched to pass every image it renders through
+# the cozy-lib helpers. As a subchart it does not see _cluster, so the platform
+# hands it the table under strimzi-kafka-operator.cozystackImageOverrides, as
+# written (match included), and hands it nothing without a table.
+set:
+  _images: []
+  bundles:
+    system:
+      enabled: true
+      variant: isp-full
+    paas:
+      enabled: true
+tests:
+  - it: passes no values without a table
+    documentSelector:
+      path: metadata.name
+      value: cozystack.kafka-operator
+    asserts:
+      - notExists:
+          path: spec.components
+
+  - it: passes the table to the subchart
+    set:
+      registries:
+        imageOverrides:
+          - name: quay.io/strimzi/kafka
+            match: {tag: 0.45.1-rc1-kafka-3.9.1}
+            newTag: 0.45.1-rc1-kafka-3.9.1-os1
+    documentSelector:
+      path: metadata.name
+      value: cozystack.kafka-operator
+    asserts:
+      - equal:
+          path: spec.components.kafka-operator.values.strimzi-kafka-operator.cozystackImageOverrides
+          value:
+            - name: quay.io/strimzi/kafka
+              match: {tag: 0.45.1-rc1-kafka-3.9.1}
+              newTag: 0.45.1-rc1-kafka-3.9.1-os1

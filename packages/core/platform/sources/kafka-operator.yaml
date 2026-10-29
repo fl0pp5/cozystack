@@ -14,9 +14,13 @@ spec:
     dependsOn:
     - cozystack.networking
     - cozystack.prometheus-operator-crds
+    libraries:
+    - name: cozy-lib
+      path: library/cozy-lib
     components:
     - name: kafka-operator
       path: system/kafka-operator
+      libraries: ["cozy-lib"]
       install:
         namespace: cozy-kafka-operator
         releaseName: kafka-operator

@@ -96,6 +96,14 @@ extract() {
       done < <(yq 'select(.kind == "ConfigMap" and (.metadata.name | test("-image-config$"))) | .data | to_entries[] | select(.key | test("^0_")) | .value' "$out" \
                | yq ea '. as $c | $c.components | to_entries[] | .value as $v | ([$v.image] + [($v.match // [])[] | .image])[] | select(. != null) | $c.base + "/" + . + ":" + $v.tag')
       ;;
+    system/kafka-operator)
+      # Strimzi's operator env, each Kafka version of the maps a line of its
+      # own as <version>=<reference>.
+      while read -r ref; do
+        case "$ref" in ""|---|null) continue ;; esac
+        add "${ref#*=}" "$chart" 3
+      done < <(yq 'select(.kind == "Deployment" and .metadata.name == "strimzi-cluster-operator") | .spec.template.spec.containers[0].env[] | select(.name | test("^STRIMZI_(DEFAULT_.*_IMAGE|DEFAULT_MAVEN_BUILDER|KAFKA_.*IMAGES)$")) | .value' "$out" | tr -s ' \n' '\n')
+      ;;
     system/kubeovn)
       while read -r ref; do
         add "$ref" "$chart" 3
@@ -136,7 +144,7 @@ done
 for chart in system/mariadb-operator system/etcd-operator system/monitoring-agents \
     system/capi-providers-core system/capi-providers-infraprovider system/cert-manager system/foundationdb-operator \
     system/kubeovn system/keycloak system/monitoring system/seaweedfs-db system/kubevirt-operator \
-    system/piraeus-operator; do
+    system/piraeus-operator system/kafka-operator; do
   render "$chart"
 done
 # apps/harbor runs Harbor on a CloudNativePG database and a RedisFailover of

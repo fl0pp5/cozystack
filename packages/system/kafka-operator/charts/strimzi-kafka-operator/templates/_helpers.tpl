@@ -46,7 +46,7 @@ To use, add the following key/value pairs to the scope:
 {{- $vals := ternary .Values.image (index .Values .key).image (empty .key) -}}
 {{- $ref := join "/" (compact (list (default .Values.defaultImageRegistry $vals.registry) (default .Values.defaultImageRepository $vals.repository) (default .Values.defaultImageName $vals.name))) -}}
 {{- $tag := join "" (compact (list (coalesce $vals.tag $vals.tagPrefix .Values.defaultImageTag) (ternary .tagSuffix "" (empty $vals.tag)))) -}}
-{{- join "" (compact (list $ref (ternary ":" "@" (empty $vals.digest)) (default $tag $vals.digest))) -}}
+{{- include "cozy-lib.image" (list (join "" (compact (list $ref (ternary ":" "@" (empty $vals.digest)) (default $tag $vals.digest)))) .) -}}
 {{- $_ := unset . "key" -}}
 {{- $_ := unset . "tagSuffix" -}}
 {{- end -}}
