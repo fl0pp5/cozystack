@@ -1,0 +1,27 @@
+suite: kubevirt provider manager image follows the image override table
+
+# The cluster-api operator deploys the manager from files/components.gz, out
+# of the post-renderer's reach. The chart always sets imageUrl to the image in
+# images/cluster-api-provider-kubevirt.tag, so it renders that image through
+# cozy-lib.image.
+templates:
+  - templates/providers.yaml
+tests:
+  - it: renders the image of the tag file without a table
+    asserts:
+      - equal:
+          path: spec.deployment.containers[0].imageUrl
+          value: quay.io/capk/capk-manager:v0.1.10@sha256:87c2a80413a0f64f65326d379f4905d3f3f2eaf9dab8a6a67a7f7973ca85aef6
+
+  - it: sets imageUrl to the renamed image
+    set:
+      _cluster:
+        image-overrides:
+          - name: quay.io/capk/capk-manager
+            match: {tag: v0.1.10}
+            newName: registry.example.org/os/capk-manager
+            newTag: v0.1.10-os1
+    asserts:
+      - equal:
+          path: spec.deployment.containers[0].imageUrl
+          value: registry.example.org/os/capk-manager:v0.1.10-os1

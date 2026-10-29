@@ -105,7 +105,7 @@ for version in $(yq 'keys | .[]' "$ROOT/packages/apps/kubernetes-nodes/files/ver
     --set-string _cluster.cluster-domain=cozy.local --set "version=$version"
 done
 for chart in system/mariadb-operator system/etcd-operator system/monitoring-agents \
-    system/capi-providers-core system/cert-manager system/foundationdb-operator \
+    system/capi-providers-core system/capi-providers-infraprovider system/cert-manager system/foundationdb-operator \
     system/kubeovn system/keycloak system/monitoring system/seaweedfs-db; do
   render "$chart"
 done

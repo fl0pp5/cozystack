@@ -15,9 +15,13 @@ spec:
     - cozystack.networking
     - cozystack.capi-operator
     - cozystack.kubevirt
+    libraries:
+    - name: cozy-lib
+      path: library/cozy-lib
     components:
     - name: capi-providers-infraprovider
       path: system/capi-providers-infraprovider
+      libraries: ["cozy-lib"]
       install:
         privileged: true
         namespace: cozy-cluster-api
@@ -27,9 +31,13 @@ spec:
     - cozystack.networking
     - cozystack.capi-operator
     - cozystack.kubevirt
+    libraries:
+    - name: cozy-lib
+      path: library/cozy-lib
     components:
     - name: capi-providers-infraprovider
       path: system/capi-providers-infraprovider
+      libraries: ["cozy-lib"]
       install:
         privileged: true
         namespace: cozy-cluster-api

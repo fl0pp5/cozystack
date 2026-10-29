@@ -4,7 +4,10 @@ export NAMESPACE=cozy-cluster-api
 include ../../../hack/common-envs.mk
 include ../../../hack/package.mk
 
-.PHONY: image
+.PHONY: image test
+
+test:
+	helm unittest .
 
 UPSTREAM_VERSION = $(shell awk -F= '/^ARG VERSION=/{print $$2}' images/cluster-api-provider-kubevirt/Dockerfile)
 COZYSTACK_REV = 0
