@@ -214,3 +214,18 @@ Usage: {{ include "cozy-lib.imageOverrideEntry" (list "quay.io/jetstack/cert-man
 {{- end }}
 {{- toYaml $entry }}
 {{- end }}
+
+{{/*
+cozy-lib.imageOverrideEntry as the repository, tag and digest values of a
+vendored chart that takes an image in parts, as YAML with only the parts the
+table changes, so the chart keeps its own default for the rest.
+Usage: {{ include "cozy-lib.imageOverrideValues" (list "quay.io/jetstack/cert-manager-acmesolver" $table) | fromYaml }}
+*/}}
+{{- define "cozy-lib.imageOverrideValues" -}}
+{{- $entry := include "cozy-lib.imageOverrideEntry" . | fromYaml }}
+{{- $values := dict }}
+{{- with $entry.newName }}{{ $_ := set $values "repository" . }}{{ end }}
+{{- with $entry.newTag }}{{ $_ := set $values "tag" . }}{{ end }}
+{{- with $entry.digest }}{{ $_ := set $values "digest" . }}{{ end }}
+{{- toYaml $values }}
+{{- end }}

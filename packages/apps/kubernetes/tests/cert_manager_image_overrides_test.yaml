@@ -1,0 +1,79 @@
+suite: tenant cert-manager follows the image override table for its ACME solver
+# The cert-manager controller in the tenant cluster starts ACME HTTP-01 solver
+# pods from an image it takes as an argument, out of the post-renderer's reach.
+# The release passes the parts of that image the table changes, as the platform
+# does for the management cluster, and nothing without a table. An image the
+# tenant sets in valuesOverride stays as written.
+templates:
+  - templates/helmreleases/cert-manager.yaml
+release:
+  name: kubernetes-test
+  namespace: tenant-test
+set:
+  _namespace:
+    etcd: etcd-test
+  _cluster:
+    cluster-domain: cozy.local
+  addons:
+    certManager:
+      enabled: true
+tests:
+  - it: passes no solver image without a table
+    asserts:
+      - notExists:
+          path: spec.values.cert-manager.acmesolver
+
+  - it: passes the renamed solver image in parts
+    set:
+      _cluster:
+        cluster-domain: cozy.local
+        image-overrides:
+          - name: quay.io/jetstack/cert-manager-acmesolver
+            newName: registry.example.org/os/acmesolver
+            newTag: v1.20.2-os1
+    asserts:
+      - equal:
+          path: spec.values.cert-manager.acmesolver.image
+          value:
+            repository: registry.example.org/os/acmesolver
+            tag: v1.20.2-os1
+
+  - it: keeps the values the chart already passes beside the solver image
+    set:
+      addons:
+        gatewayAPI:
+          enabled: true
+      _cluster:
+        cluster-domain: cozy.local
+        image-overrides:
+          - name: quay.io/jetstack/cert-manager-acmesolver
+            digest: sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f
+    asserts:
+      - equal:
+          path: spec.values.cert-manager.acmesolver.image
+          value:
+            digest: sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f
+      - equal:
+          path: spec.values.cert-manager.config.enableGatewayAPI
+          value: true
+
+  - it: leaves a solver image the tenant names in valuesOverride as written
+    set:
+      addons:
+        certManager:
+          valuesOverride:
+            cert-manager:
+              acmesolver:
+                image:
+                  repository: tenant.example.org/acmesolver
+      _cluster:
+        cluster-domain: cozy.local
+        image-overrides:
+          - name: quay.io/jetstack/cert-manager-acmesolver
+            newName: registry.example.org/os/acmesolver
+            newTag: v1.20.2-os1
+    asserts:
+      - equal:
+          path: spec.values.cert-manager.acmesolver.image
+          value:
+            repository: tenant.example.org/acmesolver

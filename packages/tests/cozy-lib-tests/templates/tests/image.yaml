@@ -7,3 +7,4 @@ data:
   parts: {{ include "cozy-lib.imageParts" (list (.Values.ref | default "quay.io/org/app:v1") $) | fromYaml | toJson | quote }}
   name: {{ include "cozy-lib.imageName" (list (.Values.name | default "quay.io/org/app") $) | quote }}
   entry: {{ include "cozy-lib.imageOverrideEntry" (list (.Values.name | default "quay.io/org/app") (index (.Values._cluster | default dict) "image-overrides")) | fromYaml | toJson | quote }}
+  values: {{ include "cozy-lib.imageOverrideValues" (list (.Values.name | default "quay.io/org/app") (index (.Values._cluster | default dict) "image-overrides")) | fromYaml | toJson | quote }}

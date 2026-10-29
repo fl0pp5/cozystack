@@ -226,11 +226,7 @@
        hack/cert-manager-acmesolver-overrides_test.bats holds the two to the
        same reference. */ -}}
 {{- $imageOverrides := include "cozystack.platform.imageOverrides" $ | fromYamlArray -}}
-{{- $acmesolver := include "cozy-lib.imageOverrideEntry" (list "quay.io/jetstack/cert-manager-acmesolver" $imageOverrides) | fromYaml -}}
-{{- $acmesolverImage := dict -}}
-{{- with $acmesolver.newName }}{{ $_ := set $acmesolverImage "repository" . }}{{ end -}}
-{{- with $acmesolver.newTag }}{{ $_ := set $acmesolverImage "tag" . }}{{ end -}}
-{{- with $acmesolver.digest }}{{ $_ := set $acmesolverImage "digest" . }}{{ end -}}
+{{- $acmesolverImage := include "cozy-lib.imageOverrideValues" (list "quay.io/jetstack/cert-manager-acmesolver" $imageOverrides) | fromYaml -}}
 {{- with $acmesolverImage }}{{ $_ := set (index $certManagerValues "cert-manager") "acmesolver" (dict "image" .) }}{{ end -}}
 {{- $certManagerComponents := dict "cert-manager" (dict "values" $certManagerValues) -}}
 {{include "cozystack.platform.package" (list "cozystack.cert-manager" "default" $ $certManagerComponents) }}

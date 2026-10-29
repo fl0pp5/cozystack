@@ -40,7 +40,19 @@ spec:
     remediation:
       retries: -1
   values:
-    {{- toYaml (deepCopy .Values.addons.certManager.valuesOverride | mergeOverwrite (fromYaml (include "cozystack.defaultCertManagerValues" .))) | nindent 4 }}
+    {{- $values := deepCopy .Values.addons.certManager.valuesOverride | mergeOverwrite (fromYaml (include "cozystack.defaultCertManagerValues" .)) }}
+    {{- /* The controller starts ACME HTTP-01 solver pods from an image it takes
+    as an argument, which the post-renderer above does not see; the chart
+    takes it in parts, as on the management cluster (bundles/system.yaml in
+    the platform chart). An image the tenant names in valuesOverride is its
+    own choice and stays as written. */}}
+    {{- $userImage := dig "cert-manager" "acmesolver" "image" dict (.Values.addons.certManager.valuesOverride | default dict) }}
+    {{- if not (pick $userImage "registry" "repository" "name" "tag" "digest") }}
+    {{-   with include "cozy-lib.imageOverrideValues" (list "quay.io/jetstack/cert-manager-acmesolver" (index (.Values._cluster | default dict) "image-overrides")) | fromYaml }}
+    {{-     $values = mergeOverwrite $values (dict "cert-manager" (dict "acmesolver" (dict "image" .))) }}
+    {{-   end }}
+    {{- end }}
+    {{- toYaml $values | nindent 4 }}
   dependsOn:
   - name: {{ .Release.Name }}-cilium
     namespace: {{ .Release.Namespace }}

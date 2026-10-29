@@ -15,6 +15,7 @@ tests:
       - equal: {path: data.parts, value: '{"digest":"","registry":"quay.io","repository":"org/app","tag":"v1"}'}
       - equal: {path: data.name, value: "quay.io/org/app"}
       - equal: {path: data.entry, value: '{}'}
+      - equal: {path: data.values, value: '{}'}
 
   - it: prefixes images-registry as before
     set:
@@ -59,6 +60,8 @@ tests:
       - equal: {path: data.image, value: "quay.io/org/app@sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f"}
       - equal: {path: data.parts, value: '{"digest":"sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f","registry":"quay.io","repository":"org/app","tag":""}'}
       - equal: {path: data.entry, value: '{"digest":"sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f","dropTag":true}'}
+      # A chart that composes repository@digest needs no dropTag.
+      - equal: {path: data.values, value: '{"digest":"sha256:f80b60d4523dcdecb225c3113bcbd0eedc45b4d2b46f87c0ccf4f14d09a4a35f"}'}
 
   - it: rewrites only the version match selects
     set:
@@ -97,6 +100,7 @@ tests:
     asserts:
       - equal: {path: data.name, value: "registry.example.org/os/etcd"}
       - equal: {path: data.entry, value: '{"newName":"registry.example.org/os/etcd","newTag":"3.5.12"}'}
+      - equal: {path: data.values, value: '{"repository":"registry.example.org/os/etcd","tag":"3.5.12"}'}
 
   - it: reads the table a vendored subchart is given under its own key
     set:
