@@ -1,0 +1,159 @@
+suite: FoundationDB images follow the image override table
+
+# The operator creates every FoundationDB pod and picks its images, out of the
+# post-renderer's reach. The chart names an image in imageConfigs only when the
+# table changes it, for the cluster's version alone, so an upgrade to another
+# version is not held on it, and leaves the operator to choose otherwise.
+
+templates:
+  - templates/cluster.yaml
+  - templates/backup.yaml
+
+release:
+  name: foundationdb-test
+  namespace: tenant-test
+
+set:
+  _cluster:
+    cluster-domain: cozy.local
+  backup:
+    enabled: true
+    s3:
+      bucket: fdb-backups
+      credentials:
+        accessKeyId: key
+        secretAccessKey: secret
+
+tests:
+  - it: leaves the cluster images to the operator without a table
+    template: templates/cluster.yaml
+    documentSelector: &cluster
+      path: kind
+      value: FoundationDBCluster
+    asserts:
+      - notExists: {path: spec.mainContainer}
+      - notExists: {path: spec.sidecarContainer.imageConfigs}
+
+  - it: leaves the backup agents to the operator without a table
+    template: templates/backup.yaml
+    documentSelector: &backup
+      path: kind
+      value: FoundationDBBackup
+    asserts:
+      - notExists: {path: spec.mainContainer}
+
+  - it: names one version of the main image with its tag and digest
+    template: templates/cluster.yaml
+    documentSelector: *cluster
+    set:
+      _cluster:
+        cluster-domain: cozy.local
+        image-overrides:
+          - name: foundationdb/foundationdb
+            match: {tag: 7.3.63}
+            newName: registry.example.org/os/foundationdb
+            newTag: 7.3.63-os1
+            digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+    asserts:
+      - equal:
+          path: spec.mainContainer.imageConfigs
+          value:
+            - version: 7.3.63
+              baseImage: registry.example.org/os/foundationdb
+              tag: 7.3.63-os1@sha256:1111111111111111111111111111111111111111111111111111111111111111
+      - notExists: {path: spec.sidecarContainer.imageConfigs}
+
+  - it: leaves another version to the operator when match names 7.3.63
+    template: templates/cluster.yaml
+    documentSelector: *cluster
+    set:
+      version: v7.4
+      _cluster:
+        cluster-domain: cozy.local
+        image-overrides:
+          - name: foundationdb/foundationdb
+            match: {tag: 7.3.63}
+            newName: registry.example.org/os/foundationdb
+    asserts:
+      - notExists: {path: spec.mainContainer}
+
+  - it: names the sidecar image, whose tag carries a suffix
+    template: templates/cluster.yaml
+    documentSelector: *cluster
+    set:
+      _cluster:
+        cluster-domain: cozy.local
+        image-overrides:
+          - name: foundationdb/foundationdb-kubernetes-sidecar
+            newName: registry.example.org/os/fdb-sidecar
+    asserts:
+      - equal:
+          path: spec.sidecarContainer.imageConfigs
+          value:
+            - version: 7.3.63
+              baseImage: registry.example.org/os/fdb-sidecar
+              tag: 7.3.63-1
+      - equal: {path: spec.sidecarContainer.enableReadinessProbe, value: true}
+
+  - it: names the unified image as the main one, and no sidecar image
+    template: templates/cluster.yaml
+    documentSelector: *cluster
+    set:
+      imageType: unified
+      _cluster:
+        cluster-domain: cozy.local
+        image-overrides:
+          - name: foundationdb/fdb-kubernetes-monitor
+            newName: registry.example.org/os/fdb-monitor
+          - name: foundationdb/foundationdb-kubernetes-sidecar
+            newName: registry.example.org/os/fdb-sidecar
+    asserts:
+      - equal:
+          path: spec.mainContainer.imageConfigs
+          value:
+            - version: 7.3.63
+              baseImage: registry.example.org/os/fdb-monitor
+              tag: 7.3.63
+      - notExists: {path: spec.sidecarContainer.imageConfigs}
+
+  - it: names the unified image the backup agents run
+    template: templates/backup.yaml
+    documentSelector: *backup
+    set:
+      _cluster:
+        cluster-domain: cozy.local
+        image-overrides:
+          - name: foundationdb/fdb-kubernetes-monitor
+            newName: registry.example.org/os/fdb-monitor
+    asserts:
+      - equal:
+          path: spec.mainContainer.imageConfigs
+          value:
+            - version: 7.3.63
+              baseImage: registry.example.org/os/fdb-monitor
+              tag: 7.3.63
+
+  - it: refuses a digest without a tag, which the operator cannot express
+    template: templates/cluster.yaml
+    set:
+      _cluster:
+        cluster-domain: cozy.local
+        image-overrides:
+          - name: foundationdb/foundationdb
+            digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+    asserts:
+      - failedTemplate:
+          errorPattern: "which has no tag; the FoundationDB operator builds the image as baseImage:tag"
+
+  - it: refuses a tag longer than the operator stores
+    template: templates/cluster.yaml
+    set:
+      _cluster:
+        cluster-domain: cozy.local
+        image-overrides:
+          - name: foundationdb/foundationdb
+            newTag: 7.3.63-a-very-long-tag-that-together-with-the-digest-will-not-fit
+            digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+    asserts:
+      - failedTemplate:
+          errorPattern: "at most 100 characters"

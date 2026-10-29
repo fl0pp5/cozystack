@@ -29,6 +29,11 @@ spec:
   version: {{ include "foundationdb.versionMap" . | quote }}
   
   backupState: Running
+  {{- /* Without an imageType the backup agents run the unified image. */}}
+  {{- with include "foundationdb.imageConfigs" (list "foundationdb/fdb-kubernetes-monitor" (include "foundationdb.versionMap" .) (include "foundationdb.versionMap" .) $) | fromYamlArray }}
+  mainContainer:
+    imageConfigs: {{- toYaml . | nindent 6 }}
+  {{- end }}
   
   backupDeploymentSpec:
     podTemplateSpec:

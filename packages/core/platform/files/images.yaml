@@ -60,14 +60,47 @@ images:
   chart: system/mariadb-operator
   route: 3
 - ref: foundationdb/fdb-kubernetes-monitor:7.3.63
+  chart: apps/foundationdb
+  route: 1
+  joinsTag: true
+- ref: foundationdb/fdb-kubernetes-monitor:7.3.63
   chart: system/foundationdb-operator
   route: 0
 - ref: foundationdb/fdb-kubernetes-monitor:7.4.1
+  chart: apps/foundationdb
+  route: 1
+  joinsTag: true
+- ref: foundationdb/fdb-kubernetes-monitor:7.4.1
   chart: system/foundationdb-operator
   route: 0
+- ref: foundationdb/fdb-kubernetes-monitor
+  chart: apps/foundationdb
+  route: 1
 - ref: foundationdb/fdb-kubernetes-operator:v2.30.0
   chart: system/foundationdb-operator
   route: 0
+- ref: foundationdb/foundationdb:7.3.63
+  chart: apps/foundationdb
+  route: 1
+  joinsTag: true
+- ref: foundationdb/foundationdb:7.4.1
+  chart: apps/foundationdb
+  route: 1
+  joinsTag: true
+- ref: foundationdb/foundationdb
+  chart: apps/foundationdb
+  route: 1
+- ref: foundationdb/foundationdb-kubernetes-sidecar:7.3.63-1
+  chart: apps/foundationdb
+  route: 1
+  joinsTag: true
+- ref: foundationdb/foundationdb-kubernetes-sidecar:7.4.1-1
+  chart: apps/foundationdb
+  route: 1
+  joinsTag: true
+- ref: foundationdb/foundationdb-kubernetes-sidecar
+  chart: apps/foundationdb
+  route: 1
 - ref: ghcr.io/cloudnative-pg/postgis:13.22-3.6.0-standard-trixie
   chart: apps/postgres
   route: 1

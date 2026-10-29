@@ -80,6 +80,12 @@ extract() {
         add "$ref" "$chart" 3
       done < <(yq 'select(.kind == "ConfigMap" and .metadata.name == "mariadb-operator-env") | .data | to_entries[] | select(.key | test("^(RELATED_IMAGE_|MARIADB_OPERATOR_IMAGE$)")) | .value' "$out")
       ;;
+    apps/foundationdb)
+      while read -r ref; do
+        case "$ref" in ""|---|null) continue ;; esac
+        add "${ref#"$PROBE"/}" "$chart" 1 true
+      done < <(yq 'select(.kind == "FoundationDBCluster" or .kind == "FoundationDBBackup") | (.spec.mainContainer.imageConfigs // []) + (.spec.sidecarContainer.imageConfigs // []) | .[] | .baseImage + ":" + .tag' "$out")
+      ;;
     system/kubeovn)
       while read -r ref; do
         add "$ref" "$chart" 3
@@ -97,6 +103,16 @@ for version in $(yq 'keys | .[]' "$ROOT/packages/apps/postgres/files/postgis-ver
 done
 for version in $(yq 'keys | .[]' "$ROOT/packages/apps/mariadb/files/versions.yaml"); do
   render apps/mariadb --set _namespace.host=example.org --set "version=$version"
+done
+# The FoundationDB operator picks every image it runs; the chart names one only
+# when the table changes it, which the probe registry always does. The
+# in-chart backup runs the unified image whatever the cluster runs.
+for version in $(yq 'keys | .[]' "$ROOT/packages/apps/foundationdb/files/versions.yaml"); do
+  for type in split unified; do
+    render apps/foundationdb --set-string _cluster.cluster-domain=cozy.local --set "version=$version" \
+      --set "imageType=$type" --set backup.enabled=true --set backup.s3.bucket=list \
+      --set backup.s3.credentials.accessKeyId=list --set backup.s3.credentials.secretAccessKey=list
+  done
 done
 for version in $(yq 'keys | .[]' "$ROOT/packages/apps/redis/files/versions.yaml"); do
   render apps/redis --set _namespace.host=example.org --set "version=$version"

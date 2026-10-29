@@ -38,6 +38,22 @@ spec:
     {{- end }}
 
   imageType: {{ .Values.imageType }}
+  {{- /* The operator creates the pods and picks their images; an image the
+         override table changes is named here, for this version only, so an
+         upgrade to another version is not held on it. */}}
+  {{- $version := include "foundationdb.versionMap" . }}
+  {{- $sidecarImageConfigs := list }}
+  {{- $mainImageConfigs := list }}
+  {{- if eq .Values.imageType "unified" }}
+  {{-   $mainImageConfigs = include "foundationdb.imageConfigs" (list "foundationdb/fdb-kubernetes-monitor" $version $version $) | fromYamlArray }}
+  {{- else }}
+  {{-   $mainImageConfigs = include "foundationdb.imageConfigs" (list "foundationdb/foundationdb" $version $version $) | fromYamlArray }}
+  {{-   $sidecarImageConfigs = include "foundationdb.imageConfigs" (list "foundationdb/foundationdb-kubernetes-sidecar" $version (printf "%s-1" $version) $) | fromYamlArray }}
+  {{- end }}
+  {{- with $mainImageConfigs }}
+  mainContainer:
+    imageConfigs: {{- toYaml . | nindent 6 }}
+  {{- end }}
 
   labels:
     filterOnOwnerReference: false
@@ -108,3 +124,6 @@ spec:
   sidecarContainer:
     enableLivenessProbe: true
     enableReadinessProbe: true
+    {{- with $sidecarImageConfigs }}
+    imageConfigs: {{- toYaml . | nindent 6 }}
+    {{- end }}
