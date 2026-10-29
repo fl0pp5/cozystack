@@ -24,6 +24,9 @@ metadata:
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
   clusterName: {{ .Release.Name }}
+  # Required by the FoundationDBBackup schema: the backup agents run this
+  # version, which has to be the one the cluster runs.
+  version: {{ include "foundationdb.versionMap" . | quote }}
   
   backupState: Running
   

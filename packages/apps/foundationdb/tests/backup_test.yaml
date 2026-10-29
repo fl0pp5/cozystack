@@ -1,0 +1,42 @@
+suite: legacy in-chart FoundationDBBackup
+
+# The FoundationDBBackup schema requires spec.version; the apiserver rejects a
+# backup without it, which fails the whole release once backup.enabled is set.
+# The backup agents have to run the version the cluster runs.
+
+templates:
+  - templates/backup.yaml
+
+release:
+  name: foundationdb-test
+  namespace: tenant-test
+
+set:
+  _cluster:
+    cluster-domain: cozy.local
+  backup:
+    enabled: true
+    s3:
+      bucket: fdb-backups
+      credentials:
+        accessKeyId: key
+        secretAccessKey: secret
+
+tests:
+  - it: gives the backup the version of the cluster
+    documentSelector: &backup
+      path: kind
+      value: FoundationDBBackup
+    asserts:
+      - equal:
+          path: spec.version
+          value: "7.3.63"
+
+  - it: follows the version the release selects
+    set:
+      version: v7.4
+    documentSelector: *backup
+    asserts:
+      - equal:
+          path: spec.version
+          value: "7.4.1"
