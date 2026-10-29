@@ -1,0 +1,96 @@
+suite: keycloak-db follows the image override table on its major version
+templates:
+  - templates/db.yaml
+
+release:
+  name: keycloak
+  namespace: cozy-keycloak
+
+# The chart reads the live Cluster to keep it on the major version it runs
+# (cozy-lib.cnpg.image). With a table the image can carry a tag that does not
+# show that version, so the chart records it in an annotation and reads it
+# back on the next render.
+
+set:
+  _cluster:
+    root-host: example.org
+    cluster-domain: cozy.local
+
+tests:
+  - it: renders the chart image and no annotation without a table
+    documentSelector: &cluster
+      path: kind
+      value: Cluster
+    asserts:
+      - equal:
+          path: spec.imageName
+          value: ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie
+      - notExists:
+          path: metadata.annotations
+
+  - it: renames the image and records the major version its new tag hides
+    documentSelector: *cluster
+    set:
+      _cluster:
+        image-overrides:
+          - name: ghcr.io/cloudnative-pg/postgresql
+            match: {tag: 17.7-standard-trixie}
+            newName: registry.example.org/os/postgresql
+            newTag: os1
+    asserts:
+      - equal:
+          path: spec.imageName
+          value: registry.example.org/os/postgresql:os1
+      - equal:
+          path: metadata.annotations["postgres.cozystack.io/major"]
+          value: "17"
+
+  - it: keeps a renamed live cluster on the chart's major version through the annotation
+    documentSelector: *cluster
+    set:
+      _cluster:
+        image-overrides:
+          - name: ghcr.io/cloudnative-pg/postgresql
+            match: {tag: 17.7-standard-trixie}
+            newName: registry.example.org/os/postgresql
+            newTag: os1
+    kubernetesProvider:
+      scheme: &scheme
+        "postgresql.cnpg.io/v1/Cluster":
+          gvr: {group: "postgresql.cnpg.io", version: "v1", resource: "clusters"}
+          namespaced: true
+      objects:
+        - apiVersion: postgresql.cnpg.io/v1
+          kind: Cluster
+          metadata:
+            name: keycloak-db
+            namespace: cozy-keycloak
+            annotations: {postgres.cozystack.io/major: "17"}
+          spec:
+            imageName: registry.example.org/os/postgresql:os1
+    asserts:
+      - equal:
+          path: spec.imageName
+          value: registry.example.org/os/postgresql:os1
+      - equal:
+          path: metadata.annotations["postgres.cozystack.io/major"]
+          value: "17"
+
+  - it: leaves a live cluster on another major version on its image
+    documentSelector: *cluster
+    kubernetesProvider:
+      scheme: *scheme
+      objects:
+        - apiVersion: postgresql.cnpg.io/v1
+          kind: Cluster
+          metadata:
+            name: keycloak-db
+            namespace: cozy-keycloak
+          spec:
+            imageName: ghcr.io/cloudnative-pg/postgresql:16.4
+    asserts:
+      - equal:
+          path: spec.imageName
+          value: ghcr.io/cloudnative-pg/postgresql:16.4-standard-trixie
+      - notExists:
+          path: metadata.annotations

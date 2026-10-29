@@ -1,0 +1,129 @@
+suite: cozy-lib.cnpg.image keeps a CloudNativePG cluster on its major version
+
+templates:
+  - templates/tests/cnpg-image.yaml
+
+# The chart image is 17.7-standard-trixie. A cluster on 17, or none, follows
+# the chart and the table; one on another major version keeps its image. The
+# live Cluster is what the chart reads with lookup.
+
+tests:
+  - it: renders the chart image without a cluster
+    asserts:
+      - equal: {path: data.image, value: "ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie"}
+      - equal: {path: data.major, value: ""}
+
+  - it: moves a cluster on the same major version to the chart image
+    set:
+      cluster:
+        spec: {imageName: "ghcr.io/cloudnative-pg/postgresql:17.2-standard-trixie"}
+    asserts:
+      - equal: {path: data.image, value: "ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie"}
+      - equal: {path: data.major, value: ""}
+
+  - it: keeps a cluster on another major version, adding the suffix old images lacked
+    set:
+      cluster:
+        spec: {imageName: "ghcr.io/cloudnative-pg/postgresql:16.4"}
+    asserts:
+      - equal: {path: data.image, value: "ghcr.io/cloudnative-pg/postgresql:16.4-standard-trixie"}
+      - equal: {path: data.major, value: ""}
+
+  - it: keeps an image whose version it cannot read
+    set:
+      cluster:
+        spec: {imageName: "registry.example.org/custom/postgres:latest"}
+    asserts:
+      - equal: {path: data.image, value: "registry.example.org/custom/postgres:latest"}
+      - equal: {path: data.major, value: ""}
+
+  - it: prefixes images-registry to the chart image, not to a live image that has it
+    set:
+      cluster:
+        spec: {imageName: "registry.example.com/ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie"}
+      _cluster:
+        images-registry: registry.example.com
+    asserts:
+      - equal: {path: data.image, value: "registry.example.com/ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie"}
+
+  - it: applies the table and records the major version a new tag hides
+    set:
+      _cluster:
+        image-overrides:
+          - name: ghcr.io/cloudnative-pg/postgresql
+            match: {tag: 17.7-standard-trixie}
+            newName: registry.example.org/os/postgresql
+            newTag: os1
+    asserts:
+      - equal: {path: data.image, value: "registry.example.org/os/postgresql:os1"}
+      - equal: {path: data.major, value: "17"}
+
+  - it: records nothing when the new tag shows the major version
+    set:
+      _cluster:
+        image-overrides:
+          - name: ghcr.io/cloudnative-pg/postgresql
+            newName: registry.example.org/os/postgresql
+            newTag: 17.7-os1
+    asserts:
+      - equal: {path: data.image, value: "registry.example.org/os/postgresql:17.7-os1"}
+      - equal: {path: data.major, value: ""}
+
+  - it: follows a chart upgrade on a cluster the annotation names
+    # Rendered by a chart on 17.7 with match 17.7 -> os1; the chart is now on
+    # 17.8 and the table moved with it.
+    set:
+      chartImage: ghcr.io/cloudnative-pg/postgresql:17.8-standard-trixie
+      cluster:
+        metadata:
+          annotations: {postgres.cozystack.io/major: "17"}
+        spec: {imageName: "registry.example.org/os/postgresql:os1"}
+      _cluster:
+        image-overrides:
+          - name: ghcr.io/cloudnative-pg/postgresql
+            match: {tag: 17.8-standard-trixie}
+            newName: registry.example.org/os/postgresql
+            newTag: os2
+    asserts:
+      - equal: {path: data.image, value: "registry.example.org/os/postgresql:os2"}
+      - equal: {path: data.major, value: "17"}
+
+  - it: goes back to the chart image when the table is removed
+    set:
+      cluster:
+        metadata:
+          annotations: {postgres.cozystack.io/major: "17"}
+        spec: {imageName: "registry.example.org/os/postgresql:os1"}
+    asserts:
+      - equal: {path: data.image, value: "ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie"}
+      - equal: {path: data.major, value: ""}
+
+  - it: keeps a renamed cluster on another major version and its annotation
+    set:
+      cluster:
+        metadata:
+          annotations: {postgres.cozystack.io/major: "16"}
+        spec: {imageName: "registry.example.org/os/postgresql:os16"}
+      _cluster:
+        image-overrides:
+          - name: ghcr.io/cloudnative-pg/postgresql
+            match: {tag: 16.4-standard-trixie}
+            newName: registry.example.org/os/postgresql
+            newTag: os16
+    asserts:
+      - equal: {path: data.image, value: "registry.example.org/os/postgresql:os16"}
+      - equal: {path: data.major, value: "16"}
+
+  - it: applies the table to a cluster on another major version
+    set:
+      cluster:
+        spec: {imageName: "ghcr.io/cloudnative-pg/postgresql:16.4-standard-trixie"}
+      _cluster:
+        image-overrides:
+          - name: ghcr.io/cloudnative-pg/postgresql
+            match: {tag: 16.4-standard-trixie}
+            newName: registry.example.org/os/postgresql
+            newTag: os16
+    asserts:
+      - equal: {path: data.image, value: "registry.example.org/os/postgresql:os16"}
+      - equal: {path: data.major, value: "16"}

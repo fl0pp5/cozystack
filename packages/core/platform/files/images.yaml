@@ -74,6 +74,9 @@ images:
 - ref: ghcr.io/cloudnative-pg/postgresql:17.7
   chart: apps/postgres
   route: 1
+- ref: ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie
+  chart: system/keycloak
+  route: 1
 - ref: ghcr.io/cloudnative-pg/postgresql:18.1
   chart: apps/postgres
   route: 1
@@ -124,6 +127,9 @@ images:
   route: 0
 - ref: quay.io/jetstack/cert-manager-webhook:v1.20.2
   chart: system/cert-manager
+  route: 0
+- ref: quay.io/keycloak/keycloak:26.6.3
+  chart: system/keycloak
   route: 0
 - ref: quay.io/prometheus/node-exporter:v1.9.0
   chart: system/monitoring-agents

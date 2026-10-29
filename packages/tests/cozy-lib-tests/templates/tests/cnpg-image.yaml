@@ -1,0 +1,8 @@
+{{- $cnpg := include "cozy-lib.cnpg.image" (list .Values.cluster (.Values.chartImage | default "ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie") $) | fromYaml }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-cnpg-image
+data:
+  image: {{ $cnpg.image | quote }}
+  major: {{ $cnpg.major | quote }}

@@ -99,7 +99,7 @@ for version in $(yq 'keys | .[]' "$ROOT/packages/apps/mariadb/files/versions.yam
 done
 for chart in system/mariadb-operator system/etcd-operator system/monitoring-agents \
     system/capi-providers-core system/cert-manager system/foundationdb-operator \
-    system/kubeovn; do
+    system/kubeovn system/keycloak; do
   render "$chart"
 done
 
