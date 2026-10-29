@@ -2,6 +2,9 @@
 # platform chart checks registries.imageOverrides, imageRewrites and
 # allowedRegistries against. Proof of concept: it covers a subset of charts.
 images:
+- ref: alerta/alerta-web:9.1.0
+  chart: system/monitoring
+  route: 0
 - ref: busybox:latest
   chart: system/monitoring-agents
   route: 0
@@ -14,6 +17,27 @@ images:
 - ref: docker.io/clastix/kubectl:v1.32@sha256:b9ef7d8dbe65bcc81a46c09b8dc7543103055021c4f43287bf59e92a8f4fe05c
   chart: system/etcd-operator
   route: 0
+- ref: docker.io/goharbor/harbor-core:v2.15.1@sha256:887a85b8ea98b76bfc9f715f1a0785bb99f9a1034241513902dd6e95be922a83
+  chart: system/harbor
+  route: 0
+- ref: docker.io/goharbor/harbor-jobservice:v2.15.1@sha256:0de4fd2ce3a02d3e6591b439e4674ea085885ddf43652b44004cc67eb19dba12
+  chart: system/harbor
+  route: 0
+- ref: docker.io/goharbor/harbor-portal:v2.15.1@sha256:ac55161c57a8351807adf8f8def264bdd52667c371d0436beefebdac4341c9e2
+  chart: system/harbor
+  route: 0
+- ref: docker.io/goharbor/harbor-registryctl:v2.15.1@sha256:554147a956989175f63f8d41573d716c6ddf6052acd1749c88c0f99ce6ee2bff
+  chart: system/harbor
+  route: 0
+- ref: docker.io/goharbor/registry-photon:v2.15.1@sha256:ebf0325c2661729dbb317cbf839608eb8b15cfa158911a94976f2c21563c466e
+  chart: system/harbor
+  route: 0
+- ref: docker.io/goharbor/trivy-adapter-photon:v2.15.1@sha256:f0c52bed36c083ec4fded26cefab01e4cd58c9354c261cb3156c69f57bb50131
+  chart: system/harbor
+  route: 0
+- ref: docker.io/grafana/grafana:11.6.15@sha256:f739273dfed04760428fcfbfccd1752b3b7fc87ef0a3d5637e2e87cce151e1a2
+  chart: system/monitoring
+  route: 1
 - ref: docker-registry1.mariadb.com/library/mariadb:11.8.2
   chart: system/mariadb-operator
   route: 3
@@ -75,7 +99,16 @@ images:
   chart: apps/postgres
   route: 1
 - ref: ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie
+  chart: system/harbor
+  route: 1
+- ref: ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie
   chart: system/keycloak
+  route: 1
+- ref: ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie
+  chart: system/monitoring
+  route: 1
+- ref: ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie
+  chart: system/seaweedfs-db
   route: 1
 - ref: ghcr.io/cloudnative-pg/postgresql:18.1
   chart: apps/postgres

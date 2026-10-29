@@ -32,6 +32,9 @@ update:
 	# values.yaml pins images built from HARBOR_VERSION, so a chart for another
 	# Harbor release would silently run on mismatched images.
 	test "v$$(yq e '.appVersion' charts/harbor/Chart.yaml)" = "$(HARBOR_VERSION)"
+	# cozy-lib is a link into the tree rather than a vendored chart, and the
+	# rm -rf above took it with the rest of charts/.
+	ln -sfn ../../../library/cozy-lib charts/cozy-lib
 
 # Sequential on purpose: every image stamps the same values.yaml with yq -i.
 image:

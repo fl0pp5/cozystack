@@ -1,13 +1,19 @@
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
+{{- $existingCluster := lookup "postgresql.cnpg.io/v1" "Cluster" .Release.Namespace (printf "%s-db" .Values.harbor.fullnameOverride) }}
+{{- /* Through the image override table, keeping the major version the
+       cluster runs; see cozy-lib.cnpg.image. */}}
+{{- $image := include "cozy-lib.cnpg.image" (list $existingCluster "ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie" $) | fromYaml }}
 metadata:
   name: {{ .Values.harbor.fullnameOverride }}-db
+  {{- with $image.major }}
+  annotations:
+    postgres.cozystack.io/major: {{ . | quote }}
+  {{- end }}
 spec:
   instances: {{ .Values.db.replicas }}
-  {{- $existingCluster := lookup "postgresql.cnpg.io/v1" "Cluster" .Release.Namespace (printf "%s-db" .Values.harbor.fullnameOverride) }}
-  {{- $image := dig "spec" "imageName" "ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie" $existingCluster }}
-  imageName: {{ if regexMatch ":17\\." $image }}ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie{{ else if regexMatch ":[0-9]+\\.[0-9]+$" $image }}{{ printf "%s-standard-trixie" $image }}{{ else }}{{ $image }}{{ end }}
+  imageName: {{ $image.image }}
   storage:
     size: {{ .Values.db.size }}
     {{- with .Values.db.storageClass }}

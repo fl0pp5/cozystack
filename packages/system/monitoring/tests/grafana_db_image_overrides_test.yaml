@@ -1,0 +1,44 @@
+suite: grafana-db follows the image override table on its major version
+templates:
+  - templates/grafana/db.yaml
+
+release:
+  name: monitoring-system
+  namespace: tenant-root
+
+# The chart renders its CloudNativePG Cluster image through cozy-lib.cnpg.image,
+# which the cozy-lib tests and keycloak's db_image_overrides_test cover against
+# live clusters; this pins that the chart calls it.
+
+set:
+  _cluster: {}
+
+tests:
+  - it: renders the chart image and no annotation without a table
+    documentSelector: &cluster
+      path: kind
+      value: Cluster
+    asserts:
+      - equal:
+          path: spec.imageName
+          value: ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie
+      - notExists:
+          path: metadata.annotations
+
+  - it: renames the image and records the major version its new tag hides
+    documentSelector: *cluster
+    set:
+      _cluster:
+        image-overrides:
+          - name: ghcr.io/cloudnative-pg/postgresql
+            match: {tag: 17.7-standard-trixie}
+            newName: registry.example.org/os/postgresql
+            newTag: os1
+    asserts:
+      - equal:
+          path: spec.imageName
+          value: registry.example.org/os/postgresql:os1
+      - equal:
+          path: metadata.annotations["postgres.cozystack.io/major"]
+          value: "17"
+
