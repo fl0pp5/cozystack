@@ -125,7 +125,7 @@ for version in $(yq 'keys | .[]' "$ROOT/packages/apps/kubernetes-nodes/files/ver
 done
 for chart in system/mariadb-operator system/etcd-operator system/monitoring-agents \
     system/capi-providers-core system/capi-providers-infraprovider system/cert-manager system/foundationdb-operator \
-    system/kubeovn system/keycloak system/monitoring system/seaweedfs-db; do
+    system/kubeovn system/keycloak system/monitoring system/seaweedfs-db system/kubevirt-operator; do
   render "$chart"
 done
 # apps/harbor runs Harbor on a CloudNativePG database and a RedisFailover of

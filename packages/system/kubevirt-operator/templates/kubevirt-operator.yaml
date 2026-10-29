@@ -8674,8 +8674,7 @@ spec:
         command:
         - virt-operator
         env:
-        - name: VIRT_OPERATOR_IMAGE
-          value: quay.io/kubevirt/virt-operator:v1.9.0
+        {{- include "kubevirt-operator.imageEnv" (list "quay.io/kubevirt/virt-operator:v1.9.0" $) | nindent 8 }}
         - name: WATCH_NAMESPACE
           valueFrom:
             fieldRef:

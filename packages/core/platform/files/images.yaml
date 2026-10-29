@@ -221,6 +221,42 @@ images:
 - ref: quay.io/keycloak/keycloak:26.6.3
   chart: system/keycloak
   route: 0
+- ref: quay.io/kubevirt/libguestfs-tools:v1.9.0
+  chart: system/kubevirt-operator
+  route: 1
+- ref: quay.io/kubevirt/pr-helper:v1.9.0
+  chart: system/kubevirt-operator
+  route: 1
+- ref: quay.io/kubevirt/sidecar-shim:v1.9.0
+  chart: system/kubevirt-operator
+  route: 1
+- ref: quay.io/kubevirt/virt-api:v1.9.0
+  chart: system/kubevirt-operator
+  route: 1
+- ref: quay.io/kubevirt/virt-controller:v1.9.0
+  chart: system/kubevirt-operator
+  route: 1
+- ref: quay.io/kubevirt/virt-exportproxy:v1.9.0
+  chart: system/kubevirt-operator
+  route: 1
+- ref: quay.io/kubevirt/virt-exportserver:v1.9.0
+  chart: system/kubevirt-operator
+  route: 1
+- ref: quay.io/kubevirt/virt-handler:v1.9.0
+  chart: system/kubevirt-operator
+  route: 1
+- ref: quay.io/kubevirt/virt-launcher:v1.9.0
+  chart: system/kubevirt-operator
+  route: 1
+- ref: quay.io/kubevirt/virt-operator:v1.9.0
+  chart: system/kubevirt-operator
+  route: 0
+- ref: quay.io/kubevirt/virt-operator:v1.9.0
+  chart: system/kubevirt-operator
+  route: 1
+- ref: quay.io/kubevirt/virt-synchronization-controller:v1.9.0
+  chart: system/kubevirt-operator
+  route: 1
 - ref: quay.io/prometheus/node-exporter:v1.9.0
   chart: system/monitoring-agents
   route: 0

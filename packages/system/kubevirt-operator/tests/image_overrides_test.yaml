@@ -1,0 +1,87 @@
+suite: virt-operator deploys the images the image override table gives
+# virt-operator derives the image of every KubeVirt component from
+# VIRT_OPERATOR_IMAGE, a copy of its own image the post-renderer does not see,
+# unless the component has an env of its own (templates/_images.tpl). Without
+# a table the env stays as upstream ships it, so the install strategy, whose
+# ID covers these images, does not change.
+release:
+  name: kubevirt-operator
+  namespace: cozy-kubevirt
+templates:
+  - kubevirt-operator.yaml
+tests:
+  - it: passes the operator image as upstream ships it without a table
+    documentSelector: &operator
+      path: metadata.name
+      value: virt-operator
+    asserts:
+      - equal: {path: kind, value: Deployment}
+      - equal:
+          path: spec.template.spec.containers[0].env[0]
+          value: {name: VIRT_OPERATOR_IMAGE, value: "quay.io/kubevirt/virt-operator:v1.9.0"}
+      - equal:
+          path: spec.template.spec.containers[0].env[1].name
+          value: WATCH_NAMESPACE
+
+  - it: gives one renamed component an env of its own
+    documentSelector: *operator
+    set:
+      _cluster:
+        image-overrides:
+          - name: quay.io/kubevirt/virt-launcher
+            match: {tag: v1.9.0}
+            newName: registry.example.org/os/virt-launcher
+            newTag: v1.9.0-os1
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[0]
+          value: {name: VIRT_OPERATOR_IMAGE, value: "quay.io/kubevirt/virt-operator:v1.9.0"}
+      - equal:
+          path: spec.template.spec.containers[0].env[1]
+          value: {name: VIRT_LAUNCHER_IMAGE, value: "registry.example.org/os/virt-launcher:v1.9.0-os1"}
+      - equal:
+          path: spec.template.spec.containers[0].env[2].name
+          value: WATCH_NAMESPACE
+
+  - it: pins every component when the operator moves, as name@digest
+    documentSelector: *operator
+    set:
+      _cluster:
+        image-overrides:
+          - name: quay.io/kubevirt/virt-operator
+            newName: registry.example.org/os/virt-operator
+            newTag: v1.9.0-os1
+            digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+    asserts:
+      # The tag goes: with a digest the operator reads its version from
+      # KUBEVIRT_VERSION instead of a tag that carries the digest.
+      - equal:
+          path: spec.template.spec.containers[0].env[0]
+          value: {name: VIRT_OPERATOR_IMAGE, value: "registry.example.org/os/virt-operator@sha256:1111111111111111111111111111111111111111111111111111111111111111"}
+      # Components the table does not name stay where upstream ships them
+      # rather than following the operator into its new registry.
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: VIRT_API_IMAGE, value: "quay.io/kubevirt/virt-api:v1.9.0"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: VIRT_HANDLER_IMAGE, value: "quay.io/kubevirt/virt-handler:v1.9.0"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: GS_IMAGE, value: "quay.io/kubevirt/libguestfs-tools:v1.9.0"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: KUBEVIRT_VERSION, value: "v1.9.0"}
+
+  - it: moves every component with an images-registry prefix
+    documentSelector: *operator
+    set:
+      _cluster:
+        images-registry: mirror.example.org
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[0]
+          value: {name: VIRT_OPERATOR_IMAGE, value: "mirror.example.org/quay.io/kubevirt/virt-operator:v1.9.0"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: VIRT_SYNCHRONIZATIONCONTROLLER_IMAGE, value: "mirror.example.org/quay.io/kubevirt/virt-synchronization-controller:v1.9.0"}

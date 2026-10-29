@@ -14,9 +14,13 @@ spec:
     dependsOn:
     - cozystack.networking
     - cozystack.prometheus-operator-crds
+    libraries:
+    - name: cozy-lib
+      path: library/cozy-lib
     components:
     - name: kubevirt-operator
       path: system/kubevirt-operator
+      libraries: ["cozy-lib"]
       install:
         namespace: cozy-kubevirt
         releaseName: kubevirt-operator

@@ -60,4 +60,14 @@ update:
 	fi
 	sed -i 's/namespace: kubevirt/namespace: $(NAMESPACE)/g' kubevirt-operator.yaml.download
 	awk -i inplace -v RS="---" '!/kind: Namespace/{printf "%s", $$0 RS}' kubevirt-operator.yaml.download
+	@# virt-operator learns the images it deploys from VIRT_OPERATOR_IMAGE, a
+	@# copy of its own image the post-renderer does not see, so the platform's
+	@# image override table reaches it, and the components it derives, through
+	@# kubevirt-operator.imageEnv in templates/_images.tpl.
+	sed -i -E '/^        - name: VIRT_OPERATOR_IMAGE$$/{N;s#^        - name: VIRT_OPERATOR_IMAGE\n          value: (.*)$$#        {{- include "kubevirt-operator.imageEnv" (list "\1" $$) | nindent 8 }}#}' kubevirt-operator.yaml.download
+	@if ! grep -q 'kubevirt-operator.imageEnv' kubevirt-operator.yaml.download; then \
+	  rm -f kubevirt-operator.yaml.download; \
+	  echo "ERROR: VIRT_OPERATOR_IMAGE is no longer where the image override table hooks in." >&2; \
+	  exit 1; \
+	fi
 	mv kubevirt-operator.yaml.download templates/kubevirt-operator.yaml
