@@ -257,6 +257,54 @@ images:
 - ref: quay.io/kubevirt/virt-synchronization-controller:v1.9.0
   chart: system/kubevirt-operator
   route: 1
+- ref: quay.io/piraeusdatastore/drbd9-almalinux10:v9.2.16
+  chart: system/piraeus-operator
+  route: 3
+- ref: quay.io/piraeusdatastore/drbd9-almalinux8:v9.2.16
+  chart: system/piraeus-operator
+  route: 3
+- ref: quay.io/piraeusdatastore/drbd9-almalinux9:v9.2.16
+  chart: system/piraeus-operator
+  route: 3
+- ref: quay.io/piraeusdatastore/drbd9-bookworm:v9.2.16
+  chart: system/piraeus-operator
+  route: 3
+- ref: quay.io/piraeusdatastore/drbd9-bullseye:v9.2.16
+  chart: system/piraeus-operator
+  route: 3
+- ref: quay.io/piraeusdatastore/drbd9-jammy:v9.2.16
+  chart: system/piraeus-operator
+  route: 3
+- ref: quay.io/piraeusdatastore/drbd9-noble:v9.2.16
+  chart: system/piraeus-operator
+  route: 3
+- ref: quay.io/piraeusdatastore/drbd-reactor:v1.10.0
+  chart: system/piraeus-operator
+  route: 3
+- ref: quay.io/piraeusdatastore/drbd-shutdown-guard:v1.1.1
+  chart: system/piraeus-operator
+  route: 3
+- ref: quay.io/piraeusdatastore/ktls-utils:v1.2.1
+  chart: system/piraeus-operator
+  route: 3
+- ref: quay.io/piraeusdatastore/linstor-affinity-controller:v1.3.0
+  chart: system/piraeus-operator
+  route: 3
+- ref: quay.io/piraeusdatastore/piraeus-csi-nfs-server:v1.10.3
+  chart: system/piraeus-operator
+  route: 3
+- ref: quay.io/piraeusdatastore/piraeus-csi:v1.10.3
+  chart: system/piraeus-operator
+  route: 3
+- ref: quay.io/piraeusdatastore/piraeus-ha-controller:v1.3.1
+  chart: system/piraeus-operator
+  route: 3
+- ref: quay.io/piraeusdatastore/piraeus-operator:v2.10.2
+  chart: system/piraeus-operator
+  route: 0
+- ref: quay.io/piraeusdatastore/piraeus-server:v1.32.3
+  chart: system/piraeus-operator
+  route: 3
 - ref: quay.io/prometheus/node-exporter:v1.9.0
   chart: system/monitoring-agents
   route: 0
@@ -272,6 +320,27 @@ images:
 - ref: registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.15.0
   chart: system/monitoring-agents
   route: 0
+- ref: registry.k8s.io/sig-storage/csi-attacher:v4.10.0
+  chart: system/piraeus-operator
+  route: 3
+- ref: registry.k8s.io/sig-storage/csi-external-health-monitor-controller:v0.16.0
+  chart: system/piraeus-operator
+  route: 3
+- ref: registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.15.0
+  chart: system/piraeus-operator
+  route: 3
+- ref: registry.k8s.io/sig-storage/csi-provisioner:v6.1.0
+  chart: system/piraeus-operator
+  route: 3
+- ref: registry.k8s.io/sig-storage/csi-resizer:v2.0.0
+  chart: system/piraeus-operator
+  route: 3
+- ref: registry.k8s.io/sig-storage/csi-snapshotter:v8.4.0
+  chart: system/piraeus-operator
+  route: 3
+- ref: registry.k8s.io/sig-storage/livenessprobe:v2.17.0
+  chart: system/piraeus-operator
+  route: 3
 - ref: victoriametrics/operator:config-reloader-v0.68.4@sha256:a2f673d6bab3e9fe81b352c2c29a11ff1cbf284c3268757f7f198455e757e301
   chart: system/monitoring-agents
   route: 1

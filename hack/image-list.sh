@@ -86,6 +86,16 @@ extract() {
         add "${ref#"$PROBE"/}" "$chart" 1 true
       done < <(yq 'select(.kind == "FoundationDBCluster" or .kind == "FoundationDBBackup") | (.spec.mainContainer.imageConfigs // []) + (.spec.sidecarContainer.imageConfigs // []) | .[] | .baseImage + ":" + .tag' "$out")
       ;;
+    system/piraeus-operator)
+      # The defaults the operator builds images from, each OS-specific image
+      # of a match rule included; the env the patch adds names them only when
+      # the table changes them.
+      while read -r ref; do
+        case "$ref" in ""|---|null) continue ;; esac
+        add "$ref" "$chart" 3
+      done < <(yq 'select(.kind == "ConfigMap" and (.metadata.name | test("-image-config$"))) | .data | to_entries[] | select(.key | test("^0_")) | .value' "$out" \
+               | yq ea '. as $c | $c.components | to_entries[] | .value as $v | ([$v.image] + [($v.match // [])[] | .image])[] | select(. != null) | $c.base + "/" + . + ":" + $v.tag')
+      ;;
     system/kubeovn)
       while read -r ref; do
         add "$ref" "$chart" 3
@@ -125,7 +135,8 @@ for version in $(yq 'keys | .[]' "$ROOT/packages/apps/kubernetes-nodes/files/ver
 done
 for chart in system/mariadb-operator system/etcd-operator system/monitoring-agents \
     system/capi-providers-core system/capi-providers-infraprovider system/cert-manager system/foundationdb-operator \
-    system/kubeovn system/keycloak system/monitoring system/seaweedfs-db system/kubevirt-operator; do
+    system/kubeovn system/keycloak system/monitoring system/seaweedfs-db system/kubevirt-operator \
+    system/piraeus-operator; do
   render "$chart"
 done
 # apps/harbor runs Harbor on a CloudNativePG database and a RedisFailover of

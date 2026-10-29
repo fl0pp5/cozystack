@@ -17,6 +17,9 @@ spec:
     - cozystack.victoria-metrics-operator
     - cozystack.reloader
     - cozystack.snapshot-controller
+    libraries:
+    - name: cozy-lib
+      path: library/cozy-lib
     components:
     - name: piraeus-operator-crds
       path: system/piraeus-operator-crds
@@ -26,6 +29,7 @@ spec:
         releaseName: piraeus-operator-crds
     - name: piraeus-operator
       path: system/piraeus-operator
+      libraries: ["cozy-lib"]
       install:
         namespace: cozy-linstor
         releaseName: piraeus-operator

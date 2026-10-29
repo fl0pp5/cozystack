@@ -1,0 +1,81 @@
+suite: piraeus-operator takes the images the image override table gives
+# The operator builds every image it runs from its image-config, out of the
+# post-renderer's reach, unless a RELATED_IMAGE_<component>_<image> env names
+# the whole reference. patches/image-overrides.diff adds that env for each
+# image the table changes, the table coming under
+# piraeus.cozystackImageOverrides, and nothing without a table.
+release:
+  name: piraeus-operator
+  namespace: cozy-linstor
+templates:
+  - charts/piraeus/templates/deployment.yaml
+tests:
+  - it: adds no env without a table
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content: {name: RELATED_IMAGE_drbd-reactor_drbd-reactor}
+          any: true
+      - equal:
+          path: spec.template.spec.containers[0].env[-1].name
+          value: IMAGE_CONFIG_MAP_NAME
+
+  - it: names one version of a component with its tag and digest
+    set:
+      piraeus:
+        cozystackImageOverrides:
+          - name: quay.io/piraeusdatastore/drbd-reactor
+            match: {tag: v1.10.0}
+            newName: registry.example.org/os/drbd-reactor
+            newTag: v1.10.0-os1
+            digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: RELATED_IMAGE_drbd-reactor_drbd-reactor
+            value: registry.example.org/os/drbd-reactor:v1.10.0-os1@sha256:1111111111111111111111111111111111111111111111111111111111111111
+      - lengthEqual:
+          path: spec.template.spec.containers[0].env
+          count: 3
+
+  - it: leaves a component alone when match names another version
+    set:
+      piraeus:
+        cozystackImageOverrides:
+          - name: quay.io/piraeusdatastore/drbd-reactor
+            match: {tag: v1.9.0}
+            newName: registry.example.org/os/drbd-reactor
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers[0].env
+          count: 2
+
+  - it: reaches the CSI sidecars from the second image-config file
+    set:
+      piraeus:
+        cozystackImageOverrides:
+          - name: registry.k8s.io/sig-storage/csi-provisioner
+            newName: registry.example.org/os/csi-provisioner
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: RELATED_IMAGE_csi-provisioner_csi-provisioner
+            value: registry.example.org/os/csi-provisioner:v6.1.0
+
+  - it: names the module loader image of one OS, once for the rule and the fallback it shares
+    set:
+      piraeus:
+        cozystackImageOverrides:
+          - name: quay.io/piraeusdatastore/drbd9-noble
+            newName: registry.example.org/os/drbd9-noble
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: RELATED_IMAGE_drbd-module-loader_drbd9-noble
+            value: registry.example.org/os/drbd9-noble:v9.2.16
+      - lengthEqual:
+          path: spec.template.spec.containers[0].env
+          count: 3

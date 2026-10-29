@@ -1,0 +1,71 @@
+suite: piraeus-operator receives the image override table under its own key
+templates:
+  - templates/bundles/system.yaml
+release:
+  name: cozystack
+  namespace: cozy-system
+# The vendored piraeus-operator chart is patched to pass the images the
+# operator builds from its image-config through the cozy-lib helpers. As a
+# subchart it does not see _cluster, so the platform hands it the table under
+# piraeus.cozystackImageOverrides, as written (match included), on both
+# variants that run LINSTOR, and hands it nothing without a table.
+set:
+  _images: []
+tests:
+  - it: passes no table without one
+    set:
+      bundles:
+        system:
+          enabled: true
+          variant: isp-full
+    documentSelector:
+      path: metadata.name
+      value: cozystack.linstor
+    asserts:
+      - notExists:
+          path: spec.components
+
+  - it: passes the table to the subchart on isp-full
+    set:
+      bundles:
+        system:
+          enabled: true
+          variant: isp-full
+      registries:
+        imageOverrides:
+          - name: quay.io/piraeusdatastore/drbd-reactor
+            match: {tag: v1.10.0}
+            newName: registry.example.org/os/drbd-reactor
+    documentSelector:
+      path: metadata.name
+      value: cozystack.linstor
+    asserts:
+      - equal:
+          path: spec.components.piraeus-operator.values.piraeus.cozystackImageOverrides
+          value:
+            - name: quay.io/piraeusdatastore/drbd-reactor
+              match: {tag: v1.10.0}
+              newName: registry.example.org/os/drbd-reactor
+
+  - it: passes the table beside the generic variant's linstor values
+    set:
+      bundles:
+        system:
+          enabled: true
+          variant: isp-full-generic
+      registries:
+        imageOverrides:
+          - name: registry.k8s.io/sig-storage/csi-provisioner
+            newName: registry.example.org/os/csi-provisioner
+    documentSelector:
+      path: metadata.name
+      value: cozystack.linstor
+    asserts:
+      - equal:
+          path: spec.components.piraeus-operator.values.piraeus.cozystackImageOverrides
+          value:
+            - name: registry.k8s.io/sig-storage/csi-provisioner
+              newName: registry.example.org/os/csi-provisioner
+      - equal:
+          path: spec.components.linstor.values.talos.enabled
+          value: false

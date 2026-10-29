@@ -1,0 +1,14 @@
+diff --git a/packages/system/piraeus-operator/charts/piraeus/templates/deployment.yaml b/packages/system/piraeus-operator/charts/piraeus/templates/deployment.yaml
+index c67501972..85a515794 100644
+--- a/packages/system/piraeus-operator/charts/piraeus/templates/deployment.yaml
++++ b/packages/system/piraeus-operator/charts/piraeus/templates/deployment.yaml
+@@ -43,6 +43,9 @@ spec:
+               fieldPath: metadata.namespace
+         - name: IMAGE_CONFIG_MAP_NAME
+           value: {{ include "piraeus-operator.fullname" . }}-image-config
++        {{- with include "piraeus-operator.cozystackImageEnv" . }}
++        {{- . | nindent 8 }}
++        {{- end }}
+         image: {{ .Values.operator.image.repository }}:{{ .Values.operator.image.tag | default .Chart.AppVersion }}
+         imagePullPolicy: {{ .Values.operator.image.pullPolicy }}
+         livenessProbe:
