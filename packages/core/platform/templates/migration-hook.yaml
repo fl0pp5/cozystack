@@ -57,6 +57,36 @@ spec:
             # can see whether the snapshot was skipped without diffing values.
             - name: ETCD_ADOPT_SKIP_BACKUP
               value: {{ $skipBackup | ternary "1" "0" | quote }}
+            {{- /* Migrations 37, 50 and 54 write these images into live objects.
+                   The table they have to follow is the one this render
+                   carries: the cozystack-values Secret is a resource of this
+                   release and still holds the previous values while a
+                   pre-upgrade hook runs. An image the table leaves alone is not
+                   passed, and the migration keeps its own default.
+                   hack/image-override-defaults_test.bats holds these
+                   references to the ones the migrations name. */}}
+            {{- with include "cozystack.platform.imageOverrides" $ | fromYamlArray }}
+            {{-   $ctx := dict "Values" (dict "cozystackImageOverrides" .) }}
+            {{-   $cnpg := include "cozy-lib.cnpg.image" (list dict "ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie" $ctx) | fromYaml }}
+            {{-   if ne $cnpg.image "ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie" }}
+            - name: CNPG_SYSTEM_IMAGE
+              value: {{ $cnpg.image | quote }}
+            {{-     with $cnpg.major }}
+            - name: CNPG_SYSTEM_IMAGE_MAJOR
+              value: {{ . | quote }}
+            {{-     end }}
+            {{-   end }}
+            {{-   $etcd := include "cozy-lib.imageWith" (list "ghcr.io/cozystack/etcd-operator:v0.5.2" .) }}
+            {{-   if ne $etcd "ghcr.io/cozystack/etcd-operator:v0.5.2" }}
+            - name: ETCD_OPERATOR_IMAGE
+              value: {{ $etcd | quote }}
+            {{-   end }}
+            {{-   $redis := include "cozy-lib.imageWith" (list "redis:6.2.6-alpine" .) }}
+            {{-   if ne $redis "redis:6.2.6-alpine" }}
+            - name: REDIS_PIN_IMAGE
+              value: {{ $redis | quote }}
+            {{-   end }}
+            {{- end }}
       restartPolicy: Never
 ---
 apiVersion: rbac.authorization.k8s.io/v1

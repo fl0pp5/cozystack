@@ -47,3 +47,23 @@ strip_digest() {
     [[ "$ref" == *@sha256:* ]] || { echo "$ref carries no digest" >&2; return 1; }
   done
 }
+
+# The migration hook passes migrations 37, 50 and 54 the image the table gives
+# each default they write, and passes nothing when the table leaves it alone.
+# It can only tell if it starts from the same reference the migration falls
+# back to.
+@test "the migration hook starts from the images migrations 37, 50 and 54 write" {
+  local hook="$REPO_ROOT/packages/core/platform/templates/migration-hook.yaml"
+  local mig="$REPO_ROOT/packages/core/platform/images/migrations/migrations"
+  local pair var n ref
+  for pair in CNPG_SYSTEM_IMAGE:37 ETCD_OPERATOR_IMAGE:50 REDIS_PIN_IMAGE:54; do
+    var=${pair%%:*}; n=${pair#*:}
+    ref=$(sed -n "s/.*\${$var:-\\([^}]*\\)}.*/\\1/p" "$mig/$n" | head -1)
+    [ -n "$ref" ] || { echo "migration $n has no \${$var:-<default>}" >&2; return 1; }
+    grep -qF "(list \"$ref\"" "$hook" || grep -qF "dict \"$ref\"" "$hook" || {
+      echo "migration $n falls back to $ref, which the hook does not start from" >&2
+      return 1
+    }
+    grep -qF "name: $var" "$hook" || { echo "the hook never passes $var" >&2; return 1; }
+  done
+}

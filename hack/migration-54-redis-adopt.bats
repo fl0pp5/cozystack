@@ -102,6 +102,7 @@ run_migration() {
     -e FAKE_CRD_ABSENT="${FAKE_CRD_ABSENT-}" \
     -e FAKE_CRD_PROBE_FAIL="${FAKE_CRD_PROBE_FAIL-}" \
     -e FAKE_LABEL_FAIL="${FAKE_LABEL_FAIL-}" \
+    ${REDIS_PIN_IMAGE:+-e REDIS_PIN_IMAGE="$REDIS_PIN_IMAGE"} \
     "$TESTIMG" "/migrations/$1" || _run_migration_rc=$?
   return "$_run_migration_rc"
 }
@@ -127,7 +128,7 @@ DOCKERFILE
   : > "$FAKE_CMDLOG"
   export NAMESPACE=cozy-system
   export FAKE_RFS=""
-  unset FAKE_CRD_ABSENT FAKE_CRD_PROBE_FAIL FAKE_LABEL_FAIL || true
+  unset FAKE_CRD_ABSENT FAKE_CRD_PROBE_FAIL FAKE_LABEL_FAIL REDIS_PIN_IMAGE || true
   return 0
 }
 
@@ -240,5 +241,28 @@ tenant-redis my-redis redis:8.4.0 -"
   [ "$rc" -ne 0 ]
   # And it must not have stamped the version.
   [ "$(grep -cF -- 'STAMP 55' "$FAKE_CMDLOG")" -eq 0 ]
+  rm -rf "$WORK"
+}
+
+# --- 4. the image override table ---------------------------------------------
+
+# The hook passes the image the platform's image override table gives
+# redis:6.2.6-alpine as REDIS_PIN_IMAGE. The pin has to write that one, or an
+# air-gapped cluster's Redis pulls upstream until its chart next renders.
+@test "pins the image the hook passes for the image override table" {
+  prep
+  export FAKE_RFS="tenant-harbor harbor - -
+tenant-redis my-redis redis:8.4.0 -"
+  export REDIS_PIN_IMAGE=registry.example.org/os/redis:6.2.6-alpine
+  rc=0
+  run_migration 54 >"$WORK/out" 2>&1 || rc=$?
+  cat "$WORK/out"; cat "$FAKE_CMDLOG"
+  [ "$rc" -eq 0 ]
+  ph=$(patch_for tenant-harbor harbor)
+  echo "$ph" | grep -qF -- '"redis":{"image":"registry.example.org/os/redis:6.2.6-alpine"}'
+  echo "$ph" | grep -qF -- '"sentinel":{"image":"registry.example.org/os/redis:6.2.6-alpine"}'
+  pr=$(patch_for tenant-redis my-redis)
+  echo "$pr" | grep -qF -- '"sentinel":{"image":"registry.example.org/os/redis:6.2.6-alpine"}'
+  [ "$(grep -E '^PATCH ' "$FAKE_CMDLOG" | grep -cF -- '"image":"redis:6.2.6-alpine"')" -eq 0 ]
   rm -rf "$WORK"
 }

@@ -32,6 +32,10 @@
 
 set -euo pipefail
 
+# The hook passes the image the platform's image override table gives
+# redis:6.2.6-alpine, which this pin has to follow like the charts do.
+REDIS_PIN_IMAGE="${REDIS_PIN_IMAGE:-redis:6.2.6-alpine}"
+
 # shellcheck source=lib/cozystack-version.sh
 . "$(dirname "$0")/lib/cozystack-version.sh"
 
@@ -64,10 +68,10 @@ if [ -n "$rfs" ]; then
     # image is currently empty. Deep-merge with jq `*` so both spec sub-objects
     # survive, and a non-empty image (apps/redis's versionMap data image) is
     # left untouched.
-    patch=$(jq -cn --arg ri "$redis_img" --arg si "$sentinel_img" '
+    patch=$(jq -cn --arg ri "$redis_img" --arg si "$sentinel_img" --arg pin "$REDIS_PIN_IMAGE" '
       {metadata: {labels: {"redis-failover.freshworks.com/operator-group": "cozystack"}}}
-      * (if $ri == "" then {spec: {redis: {image: "redis:6.2.6-alpine"}}} else {} end)
-      * (if $si == "" then {spec: {sentinel: {image: "redis:6.2.6-alpine"}}} else {} end)')
+      * (if $ri == "" then {spec: {redis: {image: $pin}}} else {} end)
+      * (if $si == "" then {spec: {sentinel: {image: $pin}}} else {} end)')
     echo "Adopting RedisFailover ${ns}/${name} (label + engine pin where empty)"
     kubectl -n "$ns" patch redisfailovers.databases.spotahome.com "$name" \
       --type=merge -p "$patch"

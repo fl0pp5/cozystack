@@ -14,7 +14,11 @@
 
 set -euo pipefail
 
-TARGET_IMAGE="ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie"
+# The hook passes the image the platform's image override table gives this one,
+# with the major version when its tag no longer shows it; the charts read that
+# from the annotation below, or a renamed cluster would never leave its image.
+TARGET_IMAGE="${CNPG_SYSTEM_IMAGE:-ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie}"
+TARGET_MAJOR="${CNPG_SYSTEM_IMAGE_MAJOR:-}"
 
 # Static system database names
 STATIC_DB_NAMES="keycloak-db grafana-db alerta-db seaweedfs-db"
@@ -66,9 +70,13 @@ while IFS=$'\t' read -r NAMESPACE CLUSTER_NAME CURRENT_IMAGE HELM_RELEASE; do
     continue
   fi
 
+  PATCH="{\"spec\":{\"imageName\":\"${PATCH_IMAGE}\"}}"
+  if [ "$PATCH_IMAGE" = "$TARGET_IMAGE" ] && [ -n "$TARGET_MAJOR" ]; then
+    PATCH="{\"metadata\":{\"annotations\":{\"postgres.cozystack.io/major\":\"${TARGET_MAJOR}\"}},\"spec\":{\"imageName\":\"${PATCH_IMAGE}\"}}"
+  fi
   kubectl patch clusters.postgresql.cnpg.io -n "$NAMESPACE" "$CLUSTER_NAME" \
     --type=merge \
-    --patch "{\"spec\":{\"imageName\":\"${PATCH_IMAGE}\"}}"
+    --patch "$PATCH"
 done <<< "$ALL_CLUSTERS"
 
 echo "=== PostgreSQL image update completed ==="

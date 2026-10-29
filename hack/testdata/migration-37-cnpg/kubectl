@@ -1,0 +1,20 @@
+#!/bin/sh
+# Fake kubectl for hack/migration-37-cnpg-image.bats. FAKE_CLUSTERS holds the
+# jsonpath output of `kubectl get clusters.postgresql.cnpg.io -A`, tab
+# separated; patches are logged as `PATCH <ns> <name> <json>`.
+case "$*" in
+  "get clusters.postgresql.cnpg.io -A"*)
+    printf '%b' "${FAKE_CLUSTERS:-}"
+    ;;
+  "patch clusters.postgresql.cnpg.io "*)
+    ns=$4; name=$5
+    shift 5
+    while [ $# -gt 0 ]; do
+      case "$1" in --patch) printf 'PATCH %s %s %s\n' "$ns" "$name" "$2" >> "$FAKE_CMDLOG"; shift ;; esac
+      shift
+    done
+    ;;
+  "create configmap"*) echo "stamp" ;;
+  "apply -f-") cat > /dev/null; echo STAMP >> "$FAKE_CMDLOG" ;;
+  *) echo "fake kubectl: unexpected: $*" >&2; exit 1 ;;
+esac

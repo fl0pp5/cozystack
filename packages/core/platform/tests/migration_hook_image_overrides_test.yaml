@@ -1,0 +1,81 @@
+suite: the migration Job carries the images the image override table gives
+templates:
+  - templates/migration-hook.yaml
+release:
+  name: cozystack
+  namespace: cozy-system
+# Migrations 37, 50 and 54 write images into live objects. The table they
+# follow comes from this render: the cozystack-values Secret is a resource of
+# the same release and still holds the previous values while the pre-upgrade
+# hook runs. The Job only renders below migrations.targetVersion, so the
+# version ConfigMap is mocked as in migration_hook_skip_backup_test.yaml.
+kubernetesProvider:
+  scheme:
+    "v1/ConfigMap":
+      gvr:
+        version: "v1"
+        resource: "configmaps"
+      namespaced: true
+  objects:
+    - kind: ConfigMap
+      apiVersion: v1
+      metadata:
+        name: cozystack-version
+        namespace: cozy-system
+      data:
+        version: "30"
+set:
+  _images: []
+  migrations:
+    enabled: true
+tests:
+  - it: passes no image without a table, so each migration keeps its own
+    documentSelector: &job
+      path: kind
+      value: Job
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.containers[0].env
+          count: 4
+
+  - it: passes every image the table changes, and the major version a new tag hides
+    set:
+      registries:
+        imageOverrides:
+          - name: ghcr.io/cloudnative-pg/postgresql
+            match: {tag: 17.7-standard-trixie}
+            newName: registry.example.org/os/postgresql
+            newTag: os1
+          - name: ghcr.io/cozystack/etcd-operator
+            newName: registry.example.org/os/etcd-operator
+          - name: redis
+            newName: registry.example.org/os/redis
+    documentSelector: *job
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: CNPG_SYSTEM_IMAGE, value: "registry.example.org/os/postgresql:os1"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: CNPG_SYSTEM_IMAGE_MAJOR, value: "17"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: ETCD_OPERATOR_IMAGE, value: "registry.example.org/os/etcd-operator:v0.5.2"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: REDIS_PIN_IMAGE, value: "registry.example.org/os/redis:6.2.6-alpine"}
+
+  - it: passes only the images the table changes, and no major version a tag shows
+    set:
+      registries:
+        imageOverrides:
+          - name: ghcr.io/cloudnative-pg/postgresql
+            newName: registry.example.org/os/postgresql
+    documentSelector: *job
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: CNPG_SYSTEM_IMAGE, value: "registry.example.org/os/postgresql:17.7-standard-trixie"}
+      - lengthEqual:
+          path: spec.template.spec.containers[0].env
+          count: 5
