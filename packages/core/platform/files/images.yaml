@@ -236,6 +236,9 @@ images:
 - ref: oliver006/redis_exporter:v1.55.0@sha256:d82625bda93823fb40de881ffbb45b65aca772a39c30141387f92314c258da5d
   chart: apps/redis
   route: 1
+- ref: oliver006/redis_exporter:v1.55.0@sha256:d82625bda93823fb40de881ffbb45b65aca772a39c30141387f92314c258da5d
+  chart: system/harbor
+  route: 1
 - ref: prom/mysqld-exporter:v0.15.1
   chart: apps/mariadb
   route: 1
@@ -380,6 +383,9 @@ images:
 - ref: quay.io/strimzi/operator:0.45.1-rc1
   chart: system/kafka-operator
   route: 3
+- ref: redis:6.2.6-alpine
+  chart: system/harbor
+  route: 1
 - ref: redis:7.4.7
   chart: apps/redis
   route: 1

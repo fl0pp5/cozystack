@@ -6,10 +6,6 @@
 # Upstream's image-config keeps its defaults; the RELATED_IMAGE_* env the
 # patch adds overrides each, which the guard checks separately.
 system/piraeus-operator * ConfigMap/release-piraeus-image-config
-# The RedisFailover of Harbor's own Redis (class 6): with platform migration 54,
-# which writes the same image into live objects.
-system/harbor redis RedisFailover/-redis
-system/harbor oliver006/redis_exporter RedisFailover/-redis
 # The operator's fallback for OLM: imagePath reads the ClusterPolicy triple
 # first, which the patched template sets.
 system/gpu-operator nvcr.io/nvidia/cloud-native/k8s-driver-manager Deployment/gpu-operator
