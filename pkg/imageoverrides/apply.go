@@ -18,7 +18,7 @@ func Apply(ref string, images []kustomize.Image) string {
 		if !matches(ref, img.Name) {
 			continue
 		}
-		name, tag, digest := split(ref)
+		name, tag, digest := Split(ref)
 		if img.NewName != "" {
 			name = img.NewName
 		}
@@ -62,9 +62,9 @@ func matches(ref, name string) bool {
 	return err == nil && re.MatchString(ref)
 }
 
-// split is sigs.k8s.io/kustomize/api/internal/image.Split: the first path
+// Split is sigs.k8s.io/kustomize/api/internal/image.Split: the first path
 // component may carry a port, so ':' and '@' are looked for after it.
-func split(ref string) (name, tag, digest string) {
+func Split(ref string) (name, tag, digest string) {
 	search := ref
 	slash := strings.Index(ref, "/")
 	if slash > 0 {

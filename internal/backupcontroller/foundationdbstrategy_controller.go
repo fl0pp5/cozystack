@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fluxcd/pkg/apis/kustomize"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
@@ -23,6 +24,7 @@ import (
 	"github.com/cozystack/cozystack/internal/backupcontroller/foundationdbapp"
 	"github.com/cozystack/cozystack/internal/backupcontroller/foundationdbtypes"
 	"github.com/cozystack/cozystack/internal/template"
+	"github.com/cozystack/cozystack/pkg/imageoverrides"
 )
 
 // ---------------------------------------------------------------------------
@@ -240,6 +242,9 @@ func (r *BackupJobReconciler) reconcileFoundationDB(ctx context.Context, j *back
 	}
 
 	fdbBackup, err := r.ensureFoundationDBBackup(ctx, j, clusterName, cluster.Spec.Version, rendered)
+	if errors.Is(err, errImageOverridesUnavailable) {
+		return ctrl.Result{}, err
+	}
 	if err != nil {
 		return r.markBackupJobFailed(ctx, j, fmt.Sprintf("failed to ensure apps.foundationdb.org/FoundationDBBackup: %v", err))
 	}
@@ -446,6 +451,14 @@ func (r *BackupJobReconciler) ensureFoundationDBBackup(ctx context.Context, j *b
 		return nil, err
 	}
 
+	// Read only for a backup about to be created: the operator picks the
+	// agents' image once, and the poll would otherwise read the Secret every
+	// interval for the life of the job.
+	imageConfigs, err := r.foundationDBBackupImageConfigs(ctx, clusterVersion)
+	if err != nil {
+		return nil, err
+	}
+
 	blobName := rendered.BlobStoreConfiguration.BackupName
 	if blobName == "" {
 		blobName = j.Name
@@ -482,11 +495,66 @@ func (r *BackupJobReconciler) ensureFoundationDBBackup(ctx context.Context, j *b
 			PodTemplateSpec: rendered.BackupDeploymentPodTemplateSpec.DeepCopy(),
 		}
 	}
+	if len(imageConfigs) > 0 {
+		obj.Spec.MainContainer = &foundationdbtypes.ContainerOverrides{ImageConfigs: imageConfigs}
+	}
 
 	if err := r.Create(ctx, obj); err != nil {
 		return nil, err
 	}
 	return obj, nil
+}
+
+// foundationDBUnifiedImage is the image the operator runs the agents of a
+// FoundationDBBackup on when the backup names no imageType, which the driver
+// never does.
+const foundationDBUnifiedImage = "foundationdb/fdb-kubernetes-monitor"
+
+// errImageOverridesUnavailable marks a failure to read the platform's image
+// override table, which a retry can clear, as opposed to a table the operator
+// cannot carry out, which it cannot.
+var errImageOverridesUnavailable = errors.New("reading the image override table")
+
+// foundationDBBackupImageConfigs returns the imageConfigs that put the agents
+// of a FoundationDBBackup on the image the platform's image override table
+// gives them. The operator creates the agents' pods, so neither the
+// post-renderer nor a chart reaches them.
+func (r *BackupJobReconciler) foundationDBBackupImageConfigs(ctx context.Context, version string) ([]foundationdbtypes.ImageConfig, error) {
+	reader := r.APIReader
+	if reader == nil {
+		reader = r.Client
+	}
+	images, _, err := imageoverrides.Load(ctx, reader, imageoverrides.DefaultSecret)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", errImageOverridesUnavailable, err)
+	}
+	return foundationDBImageConfigs(foundationDBUnifiedImage, version, images)
+}
+
+// foundationDBImageConfigs is the imageConfigs entry for <base>:<version>
+// when the table changes it, for that version only, and none otherwise, so
+// that without a table the operator keeps choosing. It does what
+// foundationdb.imageConfigs does in packages/apps/foundationdb for the
+// resources the chart renders. The operator joins baseImage and tag with
+// ':', which carries tag@digest but cannot express a digest without a tag.
+func foundationDBImageConfigs(base, version string, images []kustomize.Image) ([]foundationdbtypes.ImageConfig, error) {
+	ref := base + ":" + version
+	image := imageoverrides.Apply(ref, images)
+	if image == ref {
+		return nil, nil
+	}
+	name, tag, digest := imageoverrides.Split(image)
+	if tag == "" {
+		return nil, fmt.Errorf("the image override table turns %s into %s, which has no tag; the FoundationDB operator builds the image as baseImage:tag and cannot run it", ref, image)
+	}
+	if digest != "" {
+		tag += "@" + digest
+	}
+	// The operator's imageConfigs.tag holds at most 100 characters.
+	if len(tag) > 100 {
+		return nil, fmt.Errorf("the image override table turns %s into %s, whose tag %q is longer than the 100 characters the FoundationDB operator stores", ref, image, tag)
+	}
+	return []foundationdbtypes.ImageConfig{{Version: version, BaseImage: name, Tag: tag}}, nil
 }
 
 // stopOtherFoundationDBBackups flips any FoundationDBBackup CRs in the

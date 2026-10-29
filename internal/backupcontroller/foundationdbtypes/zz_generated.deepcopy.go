@@ -140,6 +140,17 @@ func (in *FoundationDBBackupSpec) DeepCopyInto(out *FoundationDBBackupSpec) {
 		out.BackupDeploymentSpec = new(BackupDeploymentSpec)
 		in.BackupDeploymentSpec.DeepCopyInto(out.BackupDeploymentSpec)
 	}
+	if in.MainContainer != nil {
+		out.MainContainer = new(ContainerOverrides)
+		in.MainContainer.DeepCopyInto(out.MainContainer)
+	}
+}
+
+func (in *ContainerOverrides) DeepCopyInto(out *ContainerOverrides) {
+	*out = *in
+	if in.ImageConfigs != nil {
+		out.ImageConfigs = append([]ImageConfig(nil), in.ImageConfigs...)
+	}
 }
 
 func (in *FoundationDBBackupSpec) DeepCopy() *FoundationDBBackupSpec {

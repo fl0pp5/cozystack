@@ -165,6 +165,27 @@ type FoundationDBBackupSpec struct {
 	// fields on the operator-side type are preserved on the server.
 	// +optional
 	BackupDeploymentSpec *BackupDeploymentSpec `json:"backupDeploymentSpec,omitempty"`
+
+	// MainContainer carries the imageConfigs that name the backup_agent
+	// image when the platform's image override table changes it.
+	// +optional
+	MainContainer *ContainerOverrides `json:"mainContainer,omitempty"`
+}
+
+// ContainerOverrides mirrors the imageConfigs of apps.foundationdb.org/v1beta2
+// ContainerOverrides, the only part the driver writes.
+type ContainerOverrides struct {
+	// +optional
+	ImageConfigs []ImageConfig `json:"imageConfigs,omitempty"`
+}
+
+// ImageConfig mirrors apps.foundationdb.org/v1beta2 ImageConfig. The
+// operator builds the image as baseImage:tag from the first entry whose
+// version is empty or equal to the one it runs.
+type ImageConfig struct {
+	Version   string `json:"version,omitempty"`
+	BaseImage string `json:"baseImage,omitempty"`
+	Tag       string `json:"tag,omitempty"`
 }
 
 // BackupDeploymentSpec mirrors apps.foundationdb.org/v1beta2
