@@ -37,11 +37,12 @@ add() {
 }
 
 # render <chart> <helm args...>: collect routes 0 and 1 from a probe render,
-# then whatever the chart-specific extractor reads.
+# then whatever the chart-specific extractor reads. RELEASE names the release
+# for a chart that checks its name.
 render() {
   local chart="$1" out="$TMP/out.yaml" ref
   shift
-  if ! helm template release "$ROOT/packages/$chart" --namespace tenant-x \
+  if ! helm template "${RELEASE:-release}" "$ROOT/packages/$chart" --namespace tenant-x \
       --set-string "_cluster.images-registry=$PROBE" "$@" > "$out" 2>/dev/null; then
     echo "image-list: $chart did not render with: $*" >&2
     return 1
@@ -96,6 +97,12 @@ for version in $(yq 'keys | .[]' "$ROOT/packages/apps/postgres/files/postgis-ver
 done
 for version in $(yq 'keys | .[]' "$ROOT/packages/apps/mariadb/files/versions.yaml"); do
   render apps/mariadb --set _namespace.host=example.org --set "version=$version"
+done
+# The kubelet of tenant workers is tagged with the Kubernetes version of the
+# pool.
+for version in $(yq 'keys | .[]' "$ROOT/packages/apps/kubernetes-nodes/files/versions.yaml"); do
+  RELEASE=kubernetes-nodes-list-pool render apps/kubernetes-nodes --set-string cluster=list --set resources.cpu=2 --set resources.memory=4Gi \
+    --set-string _cluster.cluster-domain=cozy.local --set "version=$version"
 done
 for chart in system/mariadb-operator system/etcd-operator system/monitoring-agents \
     system/capi-providers-core system/cert-manager system/foundationdb-operator \

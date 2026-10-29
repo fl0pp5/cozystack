@@ -14,6 +14,9 @@ images:
 - ref: cr.fluentbit.io/fluent/fluent-bit:3.2.8
   chart: system/monitoring-agents
   route: 0
+- ref: docker.io/alpine/k8s:1.33.4@sha256:b0523f0a244ddc4c8e055aa335c040d3d78b3ead5528f4544395f7f9f69c7b68
+  chart: apps/kubernetes-nodes
+  route: 1
 - ref: docker.io/clastix/kubectl:v1.32@sha256:b9ef7d8dbe65bcc81a46c09b8dc7543103055021c4f43287bf59e92a8f4fe05c
   chart: system/etcd-operator
   route: 0
@@ -124,6 +127,21 @@ images:
   route: 3
 - ref: ghcr.io/cozystack/etcd-operator:v0.5.6
   chart: system/etcd-operator
+  route: 1
+- ref: ghcr.io/siderolabs/kubelet:v1.31.14
+  chart: apps/kubernetes-nodes
+  route: 1
+- ref: ghcr.io/siderolabs/kubelet:v1.32.13
+  chart: apps/kubernetes-nodes
+  route: 1
+- ref: ghcr.io/siderolabs/kubelet:v1.33.13
+  chart: apps/kubernetes-nodes
+  route: 1
+- ref: ghcr.io/siderolabs/kubelet:v1.34.9
+  chart: apps/kubernetes-nodes
+  route: 1
+- ref: ghcr.io/siderolabs/kubelet:v1.35.6
+  chart: apps/kubernetes-nodes
   route: 1
 - ref: mariadb:10.11.15
   chart: apps/mariadb

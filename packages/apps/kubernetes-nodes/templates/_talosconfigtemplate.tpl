@@ -208,7 +208,7 @@ spec:
               {{- $kernelModules | nindent 14 }}
           {{- end }}
           kubelet:
-            image: ghcr.io/siderolabs/kubelet:{{ $kubeletVersion }}
+            image: {{ include "cozy-lib.image" (list (printf "ghcr.io/siderolabs/kubelet:%s" $kubeletVersion) $root) }}
             {{- /* Without this the kubelet never applies the
                   node.cloudprovider.kubernetes.io/uninitialized
                   taint, the Proxmox cloud-controller-manager

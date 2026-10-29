@@ -1,0 +1,66 @@
+suite: tenant worker kubelet image follows the image override table
+
+# The kubelet image in a worker's machineconfig is the one Talos pulls when the
+# node boots; nothing rewrites it on the way, so the chart renders it through
+# cozy-lib.image. The machineconfig reaches the cluster only through the
+# reconcile Job script, and its content hash names the TalosConfigTemplate, so
+# a table that renames the kubelet also rolls the pool's workers.
+
+templates:
+  - templates/talos-reconcile-job.yaml
+
+release:
+  name: kubernetes-nodes-myk8s-md0
+  namespace: tenant-test
+
+set:
+  cluster: myk8s
+  _cluster:
+    cluster-domain: cozy.local
+  version: "v1.35"
+  minReplicas: 0
+  maxReplicas: 10
+  instanceType: ""
+  diskSize: 20Gi
+  storageClass: replicated
+  roles: []
+  resources:
+    cpu: "8"
+    memory: 16Gi
+
+tests:
+  - it: renders the upstream kubelet without a table
+    documentSelector: &job
+      path: kind
+      value: Job
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'kubelet:\s*\n\s+image: ghcr\.io/siderolabs/kubelet:v1\.35\.[0-9]+\n'
+
+  - it: renames the kubelet and keeps the Kubernetes version as its tag
+    documentSelector: *job
+    set:
+      _cluster:
+        cluster-domain: cozy.local
+        image-overrides:
+          - name: ghcr.io/siderolabs/kubelet
+            newName: registry.example.org/os/kubelet
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'kubelet:\s*\n\s+image: registry\.example\.org/os/kubelet:v1\.35\.[0-9]+\n'
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'ghcr\.io/siderolabs/kubelet'
+
+  - it: prefixes images-registry like every other image
+    documentSelector: *job
+    set:
+      _cluster:
+        cluster-domain: cozy.local
+        images-registry: mirror.example.org
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'kubelet:\s*\n\s+image: mirror\.example\.org/ghcr\.io/siderolabs/kubelet:v1\.35\.[0-9]+\n'
