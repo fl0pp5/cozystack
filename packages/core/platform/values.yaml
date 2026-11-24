@@ -809,6 +809,9 @@ backupStrategyController: {}
 # worker pools are not on `replicated` must move the golden onto their class).
 # Empty (the default) forwards nothing and keeps the child chart defaults.
 kubernetesWorkerImage: {}
+registries:
+  # Example entry: {name: docker.io/qdrant/qdrant, newName: mirror.example.org/team/qdrant}
+  imageOverrides: []
 # Pod scheduling configuration
 scheduling:
   globalAppTopologySpreadConstraints: ""
